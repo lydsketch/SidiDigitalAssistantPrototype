@@ -550,8 +550,8 @@ const BRANCHES = [
    Menus and option sets
    ========================================================= */
 const PERSONA = [
-  { id: 'yes', label: 'Yes, I do', keys: ['yes', 'yeah', 'yep', 'i do', 'customer'] },
-  { id: 'no', label: 'Not yet', keys: ['no', 'nope', 'not yet', 'not a customer'] }
+  { id: 'yes', label: 'Yes, I bank with GCB', keys: ['yes', 'yeah', 'yep', 'i do', 'customer'] },
+  { id: 'no', label: 'Not yet', keys: ['no', 'nope', 'not yet', 'not a customer', 'new'] }
 ];
 const MENU_CUSTOMER = [
   { id: 'complaint', label: 'Lodge a complaint', desc: 'Failed transactions, cards, fees' },
@@ -1137,7 +1137,7 @@ const F = {};
 
 async function ensurePersona(s) {
   if (s.state.isCustomer !== null) return;
-  const v = await s.choose('Quick question first: do you bank with GCB?', PERSONA);
+  const v = await s.choose('To serve you better, could you tell me if you already bank with GCB?', PERSONA);
   s.state.isCustomer = v === 'yes';
 }
 
@@ -1165,7 +1165,7 @@ F.start = async (s, handoff) => {
   }
   await s.say("Akwaaba! I'm Sidi, your digital assistant");
   if (!s.cfg.sensitive) await s.say('For your safety, never share your PIN, card number or codes in DMs.');
-  const v = await s.choose('Do you bank with GCB?', PERSONA);
+  const v = await s.choose("To serve you better, could you tell me if you already bank with GCB? I'll show you the options that fit you.", PERSONA);
   s.state.isCustomer = v === 'yes';
   return F.menu(s, v === 'yes' ? 'Great. What can I help with?' : "Welcome! Here's what I can do for you.");
 };
