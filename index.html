@@ -63,7 +63,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2336424A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 6px center; background-size: 12px;
 }
-#sel-jr { width: 200px; text-overflow: ellipsis; }
 .bar-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .tbtn { height: 36px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 0 12px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
 .tbtn:hover { border-color: #C9CDD0; }
@@ -132,7 +131,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .c-foot { font-size: 12px; color: var(--sub-fg); border-top: 1px solid var(--card-line); padding-top: 8px; margin-top: 2px; }
 .bal + .bal { border-top: 1px solid var(--card-line); padding-top: 10px; }
 .bal { display: flex; flex-direction: column; gap: 2px; }
-.bal-amt { font: 600 16px/1.3 var(--f-ui); font-variant-numeric: tabular-nums; }
+.bal-amt { font: 600 16px/1.3 var(--f-ui); font-variant-numeric: tabular-nums; transition: filter .25s; }
+.bal.masked { cursor: pointer; }
+.bal.masked .bal-amt { filter: blur(7px); user-select: none; }
+.bal .when-masked, .bal.masked .when-shown { display: none; }
+.bal.masked .when-masked { display: inline; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 2px 0 0; font-size: 13px; }
 .kv dt { color: var(--sub-fg); }
 .kv dd { margin: 0; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
@@ -478,10 +481,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   <div class="bar-controls">
     <label class="sel"><span>Channel</span><select id="sel-ch" aria-label="Channel"></select></label>
     <label class="sel"><span>Device</span><select id="sel-dev" aria-label="Device"></select></label>
-    <label class="sel"><span>Journey</span><select id="sel-jr" aria-label="Play a journey"></select></label>
   </div>
   <div class="bar-actions">
-    <button class="tbtn" id="fast" type="button" aria-pressed="false" title="Shorter typing delays"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span class="lbl">Fast</span></button>
     <button class="tbtn" id="restart" type="button" title="Restart this conversation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Restart</span></button>
   </div>
 </header>
@@ -612,16 +613,6 @@ const INTENTS = [
   ['menu', /^(hi|hello|hey|menu|start|home|help|options|good (morning|afternoon|evening)|akwaaba|ete sen)\b/i]
 ];
 
-const JOURNEYS = [
-  { ch: 'web', title: 'Check balance with an SMS code', steps: ['Yes, I do', 'Check balance', 'demo', 'Use code', 'All accounts', 'Recent transactions', "No, that's all", 'Helpful'] },
-  { ch: 'app', title: "Report an ATM that didn't pay", steps: ['Lodge a complaint', 'Failed transaction', 'ATM', 'Yesterday', '500', 'Skip', 'Submit complaint', 'Track this complaint', "No, that's all"] },
-  { ch: 'wa', title: 'Open an account with a Ghana Card', steps: ['Not yet', 'Open a GCB account', "Let's start", 'Everyday Savings', 'demo', 'Use code', 'Take selfie', "That's correct", 'Ring Road', 'Open my account', 'Get the GCB app'] },
-  { ch: 'ig', title: 'Ask for a balance on Instagram', steps: ['Yes, I do', 'Check balance', 'Continue on WhatsApp', 'Send code', 'Use code', 'Current'] },
-  { ch: 'x', title: 'Hand over to a live agent', steps: ['Yes, I do', 'Talk to an agent', 'My transfer', "That's all", 'Helpful'] },
-  { ch: 'web', title: 'Convert dollars to cedis', steps: ['Not yet', 'Check rates', 'Exchange rates', 'Convert an amount', 'USD', '500'] },
-  { ch: 'wa', title: 'Report a scam call', steps: ['Yes, I do', 'Lodge a complaint', 'Fraud or scam', 'Report it here', 'demo'] }
-];
-
 /* =========================================================
    Helpers
    ========================================================= */
@@ -682,7 +673,7 @@ const balanceCard = accts => h('div', { class: 'c-pad' },
   accts.map(a => h('div', { class: 'bal' },
     h('div', { class: 'c-label' }, `${a.name} ${a.no}`),
     h('div', { class: 'bal-amt' }, money(a.avail)),
-    h('div', { class: 'c-sub' }, 'Available balance'))),
+    h('div', { class: 'c-sub' }, h('span', { class: 'when-shown' }, 'Available balance'), h('span', { class: 'when-masked' }, 'Hidden for your privacy · tap to show')))),
   h('div', { class: 'c-foot' }, `As at ${now()} today`));
 
 const txnCard = () => h('div', { class: 'c-pad' },
@@ -912,6 +903,16 @@ class Session {
     this.root = root;
     this.device = device;
     this.log = log;
+    const reveal = e => {
+      const b = e.target.closest('.bal.masked');
+      if (!b || (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      b.classList.remove('masked');
+      b.removeAttribute('role');
+      b.removeAttribute('tabindex');
+    };
+    log.addEventListener('click', reveal);
+    log.addEventListener('keydown', reveal);
     this.dock = $('.qr-dock', root);
     this.screen = $('.screen', root);
     this.input = $('.composer input', root);
@@ -1020,9 +1021,19 @@ class Session {
     });
   }
 
+  // Blur any balance on screen once the customer moves on
+  maskBalances() {
+    this.log.querySelectorAll('.bal:not(.masked)').forEach(b => {
+      b.classList.add('masked');
+      b.setAttribute('role', 'button');
+      b.setAttribute('tabindex', '0');
+    });
+  }
+
   onUserText(raw, picked) {
     const text = String(raw ?? '').trim();
     if (!text && !picked) return;
+    this.maskBalances();
     const p = this.pending;
     const masked = p && p.mask && /^\d{6}$/.test(text.replace(/\s/g, ''));
     this.userBubble(masked ? '••••••' : picked ? picked.label : text);
@@ -1542,7 +1553,7 @@ function show(start = true) {
       s.mount(device);
       s.root.hidden = false;
       if (start && !s.started) s.reset();
-    } else if (s.root) s.root.hidden = true;
+    } else if (s.root) { s.root.hidden = true; if (s.started) s.maskBalances(); }
   });
   $('#sel-ch').value = current;
   $('#sel-dev').value = device;
@@ -1557,28 +1568,16 @@ function switchChannel(ch, opts) {
 
 function init() {
   document.querySelectorAll('[data-avatar]').forEach(e => e.append(h('img', { src: AV_URL, alt: '' })));
-  const selCh = $('#sel-ch'), selDev = $('#sel-dev'), selJr = $('#sel-jr');
+  const selCh = $('#sel-ch'), selDev = $('#sel-dev');
   Object.entries(CHANNELS).forEach(([k, c]) => {
     sessions[k] = new Session(k);
     selCh.append(h('option', { value: k }, c.label));
   });
   Object.entries(DEVICES).forEach(([k, label]) => selDev.append(h('option', { value: k }, label)));
-  selJr.append(h('option', { value: '' }, 'Play a journey…'));
-  JOURNEYS.forEach((j, i) => selJr.append(h('option', { value: String(i) }, `${j.title} · ${CHANNELS[j.ch].label}`)));
 
   selCh.onchange = () => switchChannel(selCh.value);
   selDev.onchange = () => { device = selDev.value; show(); };
-  selJr.onchange = () => {
-    const j = JOURNEYS[+selJr.value];
-    selJr.value = '';
-    if (j) switchChannel(j.ch, { autoplay: j.steps });
-  };
   $('#restart').onclick = () => sessions[current].reset();
-  $('#fast').onclick = e => {
-    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
-    e.currentTarget.setAttribute('aria-pressed', String(on));
-    SPEED = on ? 0.35 : 1;
-  };
   // Deep link, e.g. index.html#wa.iphone
   const [c, d] = location.hash.slice(1).split('.');
   if (CHANNELS[c]) current = c;
