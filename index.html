@@ -1,0 +1,1589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sidi Assistant Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: slim control bar on top; the stage below shows either a full-screen desktop surface or a centred device frame */
+:root {
+  --ink: #1F2328;
+  --slate: #36424A;
+  --muted: #6B7378;
+  --line: #E4E6E8;
+  --bot: #F5F5F5;
+  --surface: #FFFFFF;
+  --stage: #E9EBEC;
+  --gold: #F2B11B;
+  --gold-deep: #A87406;
+  --ok: #1F8A57;
+  --alert: #B4361E;
+  --bar-h: 56px;
+  --f-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --f-ui: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--stage); color: var(--ink); font: 14px/1.5 var(--f-ui); overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--slate); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ---------- Avatar ---------- */
+.av { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: block; background: var(--gold); }
+.av img { width: 100%; height: 100%; display: block; }
+
+/* ---------- Control bar ---------- */
+.bar {
+  position: fixed; inset: 0 0 auto 0; height: var(--bar-h); z-index: 50;
+  display: flex; align-items: center; gap: 16px;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.bar-brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.bar-brand .av { width: 30px; height: 30px; }
+.bar-brand b { font: 700 18px/1 var(--f-display); letter-spacing: -0.01em; }
+.bar-brand small { color: var(--muted); font-size: 12px; border-left: 1px solid var(--line); padding-left: 10px; }
+.bar-controls { display: flex; gap: 8px; flex: 1; justify-content: center; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.sel {
+  display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 10px; padding: 0 4px 0 12px; background: var(--surface);
+  height: 36px;
+}
+.sel:hover { border-color: #C9CDD0; }
+.sel span { font-size: 12px; color: var(--muted); }
+.sel select {
+  appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  font: 600 13px var(--f-ui); color: var(--ink); padding: 6px 26px 6px 2px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2336424A' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center; background-size: 12px;
+}
+#sel-jr { width: 200px; text-overflow: ellipsis; }
+.bar-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.tbtn { height: 36px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 0 12px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.tbtn:hover { border-color: #C9CDD0; }
+.tbtn[aria-pressed="true"] { background: var(--slate); border-color: var(--slate); color: #fff; }
+.tbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Stage ---------- */
+.stage { position: fixed; inset: var(--bar-h) 0 0 0; }
+.stage.is-phone { display: flex; align-items: center; justify-content: center; padding: 20px 16px; overflow: auto; }
+.stage.is-desktop > .device { position: absolute; inset: 0; }
+
+/* ---------- Chat primitives (shared by every channel) ---------- */
+.device {
+  --log-bg: #FFFFFF; --bot-bg: var(--bot); --bot-fg: var(--ink); --user-bg: var(--slate); --user-fg: #FFFFFF;
+  --sys-fg: var(--muted); --card-bg: #FFFFFF; --card-line: var(--line); --sub-fg: var(--muted);
+  --composer-bg: #FFFFFF; --field-bg: var(--bot); --field-line: transparent;
+  --status-bg: #FFFFFF; --status-fg: #000000; --head-bg: #FFFFFF; --head-fg: var(--ink);
+  --sb-h: 0px; --home-pad: 10px;
+}
+.screen { position: relative; overflow: hidden; background: var(--log-bg); }
+.log {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 14px; display: flex; flex-direction: column; gap: 6px;
+  background: var(--log-bg); scroll-behavior: smooth;
+}
+.row { display: flex; gap: 8px; align-items: flex-end; max-width: 100%; animation: rise .22s ease-out; }
+.row.user { justify-content: flex-end; }
+.row.user + .row.bot, .row.bot + .row.user, .row.agent + .row.user, .row.user + .row.agent, .row.bot + .row.agent { margin-top: 8px; }
+.bubble {
+  max-width: min(80%, 520px); padding: 9px 13px; border-radius: 18px;
+  line-height: 1.42; font-size: 14px; overflow-wrap: anywhere;
+  background: var(--bot-bg); color: var(--bot-fg);
+}
+.row.bot .bubble, .row.agent .bubble { border-bottom-left-radius: 6px; }
+.row.user .bubble { background: var(--user-bg); color: var(--user-fg); border-bottom-right-radius: 6px; }
+.who { display: block; font-size: 11px; font-weight: 700; color: var(--slate); margin-bottom: 2px; letter-spacing: .01em; }
+.row.agent .av { background: #D9DEE1; }
+.row.bot + .row.bot .av, .row.agent + .row.agent .av { visibility: hidden; }
+.sys { align-self: center; text-align: center; font-size: 12px; color: var(--sys-fg); padding: 6px 10px; max-width: 90%; }
+.dots { display: inline-flex; gap: 4px; padding: 3px 2px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .35; animation: blink 1s infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 100% { opacity: .25; } 50% { opacity: .8; } }
+@keyframes rise { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drop { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.av.ini-av { display: grid; place-items: center; font: 700 12px/1 var(--f-ui); color: var(--slate); background: #D9DEE1; }
+.home-top .ini-av { width: 42px; height: 42px; font-size: 14px; background: rgba(255,255,255,.16); color: #FFFFFF; }
+
+/* Quick replies (website, app) */
+.qr-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px 36px; animation: rise .22s ease-out; }
+.qr-row button, .qr-pills button {
+  border: 1px solid var(--slate); color: var(--slate); background: #FFFFFF;
+  border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px; line-height: 1.2;
+  transition: background .15s, color .15s;
+}
+.qr-row button:hover, .qr-pills button:hover { background: var(--slate); color: #FFFFFF; }
+
+/* Rich cards */
+.bubble.card { padding: 0; background: var(--card-bg); border: 1px solid var(--card-line); width: min(86%, 380px); max-width: min(86%, 380px); overflow: hidden; }
+.c-pad { padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.c-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--sub-fg); font-weight: 600; }
+.c-title { font-weight: 700; }
+.c-sub { font-size: 12px; color: var(--sub-fg); }
+.c-foot { font-size: 12px; color: var(--sub-fg); border-top: 1px solid var(--card-line); padding-top: 8px; margin-top: 2px; }
+.bal + .bal { border-top: 1px solid var(--card-line); padding-top: 10px; }
+.bal { display: flex; flex-direction: column; gap: 2px; }
+.bal-amt { font: 700 24px/1.15 var(--f-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 5px 14px; margin: 2px 0 0; font-size: 13px; }
+.kv dt { color: var(--sub-fg); }
+.kv dd { margin: 0; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.ref { font: 500 17px/1.2 var(--f-mono); letter-spacing: 0.02em; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tbl th { text-align: left; font-weight: 600; color: var(--sub-fg); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; padding: 4px 0; }
+.tbl td { padding: 6px 0; border-top: 1px solid var(--card-line); }
+.tbl th:not(:first-child), .tbl td:not(:first-child) { text-align: right; }
+.txns { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.txns li { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; padding: 6px 0; border-top: 1px solid var(--card-line); }
+.txns li:first-child { border-top: 0; }
+.t-d { color: var(--sub-fg); font-size: 12px; }
+.t-a { font-variant-numeric: tabular-nums; font-weight: 600; }
+.t-a.pos { color: var(--ok); }
+.steps { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; font-size: 13px; }
+.steps i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--card-line); margin-top: 3px; }
+.steps .done i { background: var(--ok); border-color: var(--ok); }
+.steps .now i { border-color: var(--slate); background: var(--gold); }
+.steps small { display: block; color: var(--sub-fg); font-size: 12px; }
+.insight { display: flex; flex-direction: column; gap: 4px; }
+.tag { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #FFF3D1; color: var(--gold-deep); }
+.status-ok { color: var(--ok); font-weight: 700; }
+.selfie { width: 88px; height: 88px; border-radius: 50%; align-self: center; border: 3px dashed var(--slate); overflow: hidden; }
+.selfie img { width: 100%; height: 100%; display: block; opacity: .55; }
+.selfie.scan { animation: pulse 1.2s ease-in-out infinite; }
+.selfie.done { border-style: solid; border-color: var(--ok); animation: none; }
+.selfie.done img { opacity: 1; }
+@keyframes pulse { 50% { transform: scale(.94); } }
+.selfie-wrap { align-items: center; text-align: center; }
+.branches { list-style: none; margin: 0; padding: 0; }
+.branches li { padding: 8px 0; border-top: 1px solid var(--card-line); display: grid; gap: 1px; }
+.branches li:first-child { border-top: 0; padding-top: 2px; }
+.branches small { color: var(--sub-fg); font-size: 12px; }
+.carousel { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 2px 8px; min-width: 0; flex: 1; }
+.pcard {
+  flex: 0 0 200px; scroll-snap-align: start;
+  border: 1px solid var(--card-line); border-radius: 14px; background: var(--card-bg); color: var(--bot-fg);
+  padding: 12px; display: flex; flex-direction: column; gap: 6px;
+}
+.pcard h4 { margin: 0; font: 700 15px/1.2 var(--f-display); }
+.pcard p { margin: 0; font-size: 13px; color: var(--sub-fg); }
+.pcard ul { margin: 0; padding-left: 16px; font-size: 12px; flex: 1; }
+.pcard button { border: 0; border-radius: 999px; background: var(--slate); color: #FFFFFF; padding: 7px 10px; font-weight: 600; font-size: 12px; }
+
+.composer { display: flex; gap: 8px; align-items: center; padding: 10px 12px var(--home-pad); background: var(--composer-bg); border-top: 1px solid var(--line); flex: 0 0 auto; }
+.composer input {
+  flex: 1; min-width: 0; border: 1px solid var(--field-line); background: var(--field-bg); color: var(--ink);
+  border-radius: 999px; padding: 10px 14px; font: 14px var(--f-ui);
+}
+.composer input::placeholder { color: var(--sub-fg); }
+.send { border: 0; border-radius: 999px; width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; background: var(--slate); }
+.send svg { width: 18px; height: 18px; fill: #FFFFFF; }
+
+.notif {
+  position: absolute; top: calc(var(--sb-h) + 6px); left: 10px; right: 10px; z-index: 40;
+  background: rgba(250, 250, 250, .97); color: #111; border-radius: 20px; padding: 11px 14px;
+  font-size: 13px; line-height: 1.35; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+  animation: drop .35s ease-out; transition: opacity .3s, transform .3s;
+}
+.notif.out { opacity: 0; transform: translateY(-10px); }
+.notif-app { display: flex; justify-content: space-between; font-size: 11px; color: #6b6b6b; margin-bottom: 2px; }
+.notif-app b { color: #111; text-transform: uppercase; letter-spacing: .04em; }
+.dsk .notif, .dsk-web .notif { top: 14px; left: auto; right: 14px; width: 340px; border-radius: 14px; }
+
+/* Channel headers inside a conversation */
+.ch-head { display: flex; align-items: center; gap: 10px; padding: 8px 14px 10px; flex: 0 0 auto; background: var(--head-bg); color: var(--head-fg); border-bottom: 1px solid var(--line); }
+.ch-head .av { width: 36px; height: 36px; }
+.ch-head b { display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 15px; line-height: 1.2; }
+.ch-head small { display: block; font-size: 12px; opacity: .72; line-height: 1.25; }
+.ch-head .back { font-size: 28px; line-height: 1; width: 14px; font-weight: 300; }
+.badge { width: 15px; height: 15px; flex: 0 0 auto; }
+
+/* ---------- Phone frames ---------- */
+.phone { position: relative; flex: 0 0 auto; }
+.phone > .screen { position: absolute; display: flex; flex-direction: column; }
+.statusbar { height: var(--sb-h); flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; background: var(--status-bg); color: var(--status-fg); position: relative; z-index: 6; font-weight: 600; }
+.statusbar .icons { display: flex; align-items: center; gap: 5px; }
+.statusbar svg { fill: currentColor; display: block; }
+.home-ind { position: absolute; left: 50%; transform: translateX(-50%); border-radius: 4px; background: #111; z-index: 45; pointer-events: none; }
+
+/* iPhone 17 Pro Max: 440 × 956 pt, Dynamic Island, thin aluminium band */
+.dev-iphone {
+  --sb-h: 52px; --home-pad: 30px;
+  width: min(calc((100dvh - var(--bar-h) - 40px) * 0.4603), calc(100vw - 32px), 440px);
+  aspect-ratio: 462 / 1004;
+  border-radius: 17% / 7.9%;
+  background: #1B1C1F;
+  box-shadow: inset 0 0 0 1.5px #8A8F96, inset 0 0 0 4px #3B3E43, 0 40px 80px rgba(20, 24, 28, .28);
+}
+.dev-iphone > .screen { inset: 11px; border-radius: 15.4% / 7%; }
+.dev-iphone .statusbar { padding: 6px 30px 0 34px; font-size: 15px; letter-spacing: -.01em; }
+.dev-iphone .island { position: absolute; left: 50%; top: 11px; transform: translateX(-50%); width: 31%; height: 34px; border-radius: 20px; background: #000; }
+.dev-iphone .home-ind { bottom: 8px; width: 36%; height: 5px; }
+.dev-iphone::before, .dev-iphone::after { content: ""; position: absolute; background: #6E737A; border-radius: 3px; }
+.dev-iphone::before { left: -3px; top: 17%; width: 3px; height: 9%; box-shadow: 0 -5.6vh 0 0 #6E737A; }
+.dev-iphone::after { right: -3px; top: 23%; width: 3px; height: 12%; box-shadow: 0 16vh 0 -0.3px #6E737A; }
+
+/* Samsung Galaxy S27: squarer corners, centred punch-hole, flat titanium frame */
+.dev-galaxy {
+  --sb-h: 36px; --home-pad: 22px;
+  width: min(calc((100dvh - var(--bar-h) - 40px) * 0.4505), calc(100vw - 32px), 430px);
+  aspect-ratio: 430 / 954;
+  border-radius: 9% / 4.1%;
+  background: #121315;
+  box-shadow: inset 0 0 0 2px #9B9EA3, inset 0 0 0 4px #2E3033, 0 40px 80px rgba(20, 24, 28, .28);
+}
+.dev-galaxy > .screen { inset: 8px; border-radius: 7.6% / 3.4%; }
+.dev-galaxy .statusbar { padding: 0 22px; font-size: 13px; font-weight: 500; }
+.dev-galaxy .punch { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); width: 13px; height: 13px; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px rgba(0,0,0,.25); }
+.dev-galaxy .home-ind { bottom: 7px; width: 28%; height: 4px; opacity: .8; }
+.dev-galaxy::after { content: ""; position: absolute; right: -3px; top: 22%; width: 3px; height: 15%; background: #8A8D92; border-radius: 2px; box-shadow: 0 13vh 0 -0.2px #8A8D92; }
+
+/* ---------- Desktop messenger shells (WhatsApp Web, Instagram, X) ---------- */
+.dsk > .screen { position: absolute; inset: 0; display: grid; grid-template-columns: 64px 360px minmax(0, 1fr); }
+.d-rail { border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 18px 0; background: var(--rail-bg, #FFFFFF); }
+.d-rail svg { width: 22px; height: 22px; fill: none; stroke: #54656F; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.d-rail .on svg { stroke: var(--ink); stroke-width: 2.2; }
+.d-rail .me { margin-top: auto; width: 30px; height: 30px; border-radius: 50%; background: #CBD2D6; }
+.d-list { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; background: #FFFFFF; }
+.d-list header { padding: 18px 18px 10px; font: 700 20px/1.2 var(--f-ui); }
+.d-search { margin: 0 14px 10px; background: #F0F2F5; border-radius: 10px; padding: 8px 12px; color: var(--muted); font-size: 13px; }
+.d-item { display: grid; grid-template-columns: 46px 1fr auto; gap: 12px; align-items: center; padding: 10px 16px; }
+.d-item.on { background: #F0F2F5; }
+.d-item .av, .d-item .ini { width: 46px; height: 46px; }
+.d-item .ini { border-radius: 50%; background: #DFE5E7; color: #54656F; display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.d-item div { min-width: 0; }
+.d-item b { display: block; font-weight: 600; font-size: 15px; }
+.d-item small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.d-item time { font-size: 12px; color: var(--muted); align-self: start; padding-top: 4px; }
+.d-conv { display: flex; flex-direction: column; min-width: 0; position: relative; }
+.dsk .ch-head .back { display: none; }
+.dsk .ch-head { padding: 10px 20px; min-height: 60px; }
+.dsk .log { padding: 20px max(24px, 6%); }
+.dsk .composer { padding: 12px max(24px, 6%); }
+.dsk .qr-dock { padding-left: max(24px, 6%); padding-right: max(24px, 6%); }
+
+/* ---------- WhatsApp ---------- */
+.ch-wa { --head-bg: #008069; --head-fg: #FFFFFF; --status-bg: #008069; --status-fg: #FFFFFF; --composer-bg: #F0F2F5; --field-bg: #FFFFFF; }
+.dev-iphone.ch-wa { --head-bg: #F7F8FA; --head-fg: #111B21; --status-bg: #F7F8FA; --status-fg: #000000; }
+.dsk.ch-wa { --head-bg: #F0F2F5; --head-fg: #111B21; --rail-bg: #F0F2F5; }
+.ch-wa .ch-head { border-bottom: 0; }
+.dev-iphone.ch-wa .ch-head .back, .dsk.ch-wa .ch-head .back { color: #007AFF; }
+.ch-wa .log { gap: 4px; }
+.ch-wa .row.bot, .ch-wa .row.agent { flex-direction: column; align-items: flex-start; gap: 3px; }
+.ch-wa .bubble { border-radius: 10px; padding: 6px 10px 7px; }
+.ch-wa .row.bot .bubble, .ch-wa .row.agent .bubble { border-top-left-radius: 2px; border-bottom-left-radius: 10px; }
+.ch-wa .row.user .bubble { border-top-right-radius: 2px; border-bottom-right-radius: 10px; }
+.meta { float: right; font-size: 11px; opacity: .6; margin: 7px 0 -4px 10px; line-height: 1; }
+.ticks { color: #53BDEB; margin-left: 3px; letter-spacing: -3px; }
+.row.user .ticks { color: #8FD3F5; }
+.ch-wa .sys { background: var(--bot); border-radius: 8px; font-size: 12px; padding: 5px 10px; margin: 4px 0; }
+.ch-wa .sys.enc { background: #FFF6DB; color: #54656F; }
+.ch-wa .bubble.card { width: min(80%, 380px); }
+.ch-wa .carousel { align-self: stretch; }
+.wa-btns { display: flex; flex-direction: column; gap: 3px; width: min(80%, 380px); }
+.wa-btns button { background: #FFFFFF; color: #027EB5; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font-weight: 600; font-size: 14px; }
+.wa-btns button:hover { background: var(--bot); }
+.wa-btns.used button { color: #A0AAB0; cursor: default; background: #FFFFFF; }
+.wa-list-btn { display: flex; gap: 6px; justify-content: center; align-items: center; }
+.ch-wa .send { background: #00A884; }
+.wa-sheet { position: absolute; inset: 0; background: rgba(11, 20, 26, .4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-panel { background: #FFFFFF; width: 100%; max-width: 520px; border-radius: 18px 18px 0 0; padding: 8px 0 26px; animation: rise .25s ease-out; max-height: 75%; overflow-y: auto; }
+.dsk .wa-sheet { align-items: center; }
+.dsk .sheet-panel { border-radius: 14px; padding-bottom: 8px; }
+.sheet-grip { width: 36px; height: 4px; border-radius: 4px; background: #D1D7DB; margin: 0 auto 6px; }
+.sheet-panel header { display: flex; align-items: center; gap: 12px; padding: 6px 16px 10px; font-weight: 600; font-size: 15px; }
+.sheet-panel header button { background: transparent; border: 0; font-size: 22px; line-height: 1; color: #54656F; }
+.sheet-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; text-align: left; background: transparent; border: 0; border-top: 1px solid #E9EDEF; padding: 11px 18px; color: #111B21; }
+.sheet-row:hover { background: #F5F6F6; }
+.sheet-row b { display: block; font-weight: 500; font-size: 15px; }
+.sheet-row small { color: #667781; font-size: 13px; }
+.radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #8696A0; flex: 0 0 auto; }
+.sheet-row.on .radio { border: 5px solid #00A884; }
+
+/* ---------- Instagram ---------- */
+.ch-ig .ch-head .av { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4px #D62976; }
+.ch-ig .bubble { border-radius: 22px; }
+.ch-ig .row.bot .bubble, .ch-ig .row.user .bubble, .ch-ig .row.agent .bubble { border-bottom-left-radius: 22px; border-bottom-right-radius: 22px; }
+.ch-ig .row.bot .av, .ch-ig .row.agent .av { width: 24px; height: 24px; }
+.qr-dock { display: flex; gap: 8px; overflow-x: auto; padding: 8px 12px 2px; scrollbar-width: none; flex: 0 0 auto; background: #FFFFFF; }
+.qr-dock:empty { display: none; }
+.qr-pills { display: flex; gap: 8px; }
+.ch-ig .qr-pills button { white-space: nowrap; }
+.ch-ig .composer { border-top: 0; }
+.ch-ig .composer input { border: 1px solid #DBDBDB; background: #FFFFFF; }
+.ch-ig .send { background: transparent; width: auto; padding: 0 6px; color: #4A5DF9; font-weight: 700; }
+
+/* ---------- X (light) ---------- */
+.ch-x .bubble { border-radius: 22px; }
+.ch-x .row.bot .bubble, .ch-x .row.agent .bubble { border-bottom-left-radius: 4px; }
+.ch-x .row.user .bubble { border-bottom-right-radius: 4px; }
+.x-opts { display: flex; flex-direction: column; gap: 8px; width: min(80%, 300px); margin: 4px 0 4px 36px; animation: rise .22s ease-out; }
+.x-opts button { background: #FFFFFF; border: 1px solid #CFD9DE; color: #1D9BF0; border-radius: 999px; padding: 8px 14px; font-weight: 700; }
+.x-opts button:hover { background: #E8F5FD; }
+.ch-x .send { background: transparent; }
+.ch-x .send svg { fill: #1D9BF0; }
+
+/* ---------- Website ---------- */
+.site { flex: 1; min-height: 0; overflow-y: auto; background: #FFFFFF; color: var(--ink); }
+.site .wrap { max-width: 1180px; margin: 0 auto; padding: 0 32px; }
+.util { background: var(--slate); color: #D7DEE2; font-size: 12px; }
+.util .wrap { display: flex; gap: 20px; height: 34px; align-items: center; }
+.util .sp { flex: 1; }
+.util .on { color: #FFFFFF; font-weight: 600; }
+.nav { border-bottom: 1px solid var(--line); background: #FFFFFF; position: sticky; top: 0; z-index: 3; }
+.nav .wrap { display: flex; align-items: center; gap: 28px; height: 70px; }
+.logo { display: flex; align-items: center; gap: 10px; font: 700 17px/1 var(--f-ui); }
+.roundel { width: 38px; height: 38px; border-radius: 50%; background: var(--gold); display: grid; place-items: center; font: 700 12px/1 var(--f-ui); color: var(--ink); }
+.nav nav { display: flex; gap: 22px; font-size: 14px; color: #3D464C; font-weight: 500; }
+.nav-cta { margin-left: auto; display: flex; gap: 10px; }
+.solid, .ghost { border-radius: 999px; padding: 10px 18px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.solid { background: var(--slate); color: #FFFFFF; }
+.ghost { border: 1px solid var(--slate); color: var(--slate); }
+.burger { display: none; margin-left: auto; font-size: 22px; }
+.hero { background: linear-gradient(180deg, #FFFFFF, #F7F7F5); }
+.hero .wrap { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: center; padding-top: 64px; padding-bottom: 64px; }
+.hero-copy { display: flex; flex-direction: column; gap: 16px; }
+.eyebrow { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--gold-deep); font-weight: 700; margin: 0; }
+.hero h1 { font: 700 clamp(36px, 4.4vw, 58px)/1.02 var(--f-display); letter-spacing: -0.025em; margin: 0; text-wrap: balance; }
+.hero-copy p { margin: 0; color: #4A545A; font-size: 17px; max-width: 46ch; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.hero-art { position: relative; aspect-ratio: 1 / .86; max-width: 100%; border-radius: 28px; background: radial-gradient(circle at 70% 30%, #FFD66B, var(--gold) 50%, #D9940A 100%); overflow: hidden; }
+.hero-art::before { content: ""; position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; border: 36px solid rgba(255,255,255,.18); right: -18%; bottom: -26%; }
+.art-card { position: absolute; left: 10%; bottom: 14%; width: min(300px, 70%); background: #FFFFFF; border-radius: 18px; padding: 18px; box-shadow: 0 20px 40px rgba(60, 40, 0, .22); display: flex; flex-direction: column; gap: 4px; }
+.art-card small { color: var(--muted); font-weight: 600; }
+.art-card b { font: 700 28px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.art-card span { color: var(--ok); font-size: 13px; font-weight: 600; }
+.quick .wrap { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; padding-top: 28px; padding-bottom: 28px; }
+.quick div { border: 1px solid var(--line); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 4px; }
+.quick b { font-size: 15px; }
+.quick small { color: var(--muted); font-size: 13px; }
+.rates-strip { background: #F7F7F5; border-block: 1px solid var(--line); }
+.rates-strip .wrap { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; padding-top: 16px; padding-bottom: 16px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.rates-strip small { color: var(--muted); margin-left: auto; }
+.prods .wrap { padding-top: 48px; padding-bottom: 56px; }
+.prods h2 { font: 700 30px/1.1 var(--f-display); letter-spacing: -0.02em; margin: 0 0 20px; }
+.prods .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.prods article { border-radius: 18px; background: #F7F7F5; padding: 22px; display: flex; flex-direction: column; gap: 8px; }
+.prods article b { font: 700 19px/1.2 var(--f-display); }
+.prods article p { margin: 0; color: #4A545A; }
+.prods article span { margin-top: 8px; font-weight: 600; color: var(--slate); }
+.foot { background: var(--ink); color: #AEB6BB; font-size: 13px; }
+.foot .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 28px; padding-bottom: 96px; }
+.foot b { color: #FFFFFF; width: 100%; font-size: 15px; }
+
+.dsk-web > .screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.widget {
+  position: absolute; right: 24px; bottom: 24px; z-index: 8;
+  width: 384px; height: min(640px, calc(100% - 48px));
+  background: #FFFFFF; border-radius: 20px; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 60px rgba(31, 35, 40, .22), 0 0 0 1px rgba(31, 35, 40, .06);
+  animation: rise .3s ease-out;
+}
+.w-head { background: var(--slate); color: #FFFFFF; padding: 12px 14px; display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
+.w-head .av { width: 38px; height: 38px; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.w-head b { display: block; font-size: 15px; }
+.w-head small { color: #D7DEE2; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.w-head small::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; }
+.w-min { margin-left: auto; background: transparent; border: 0; color: #FFFFFF; font-size: 22px; width: 32px; height: 32px; border-radius: 8px; line-height: 1; }
+.w-min:hover { background: rgba(255,255,255,.14); }
+.w-foot { font-size: 11px; color: var(--muted); text-align: center; padding: 0 12px 8px; background: #FFFFFF; flex: 0 0 auto; }
+.launcher { position: absolute; right: 24px; bottom: 24px; z-index: 8; display: flex; align-items: center; gap: 10px; background: transparent; border: 0; padding: 0; }
+.launcher .av { width: 60px; height: 60px; box-shadow: 0 10px 24px rgba(31,35,40,.3); }
+.launcher .nudge { background: #FFFFFF; border-radius: 16px 16px 4px 16px; padding: 10px 14px; font-weight: 600; box-shadow: 0 8px 24px rgba(31,35,40,.16); }
+
+/* Website on a phone: mobile layout, chat opens full screen */
+.phone .site .wrap { padding: 0 18px; }
+.phone .util { display: none; }
+.phone .nav .wrap { height: 58px; gap: 10px; }
+.phone .nav nav, .phone .nav-cta { display: none; }
+.phone .burger { display: block; }
+.phone .hero .wrap { grid-template-columns: 1fr; padding-top: 28px; padding-bottom: 28px; gap: 24px; }
+.phone .hero h1 { font-size: 34px; }
+.phone .hero-copy p { font-size: 15px; }
+.phone .quick .wrap { grid-template-columns: 1fr 1fr; }
+.phone .prods .grid { grid-template-columns: 1fr; }
+.phone .rates-strip small { margin-left: 0; }
+.phone .widget { left: 0; right: 0; bottom: 0; top: var(--sb-h); width: auto; height: auto; border-radius: 0; box-shadow: none; }
+.phone .w-foot { display: none; }
+.phone .launcher { right: 16px; bottom: 34px; }
+.phone .launcher .nudge { display: none; }
+
+/* ---------- Mobile app ---------- */
+.ch-app { --status-bg: transparent; --status-fg: #FFFFFF; }
+.ch-app > .screen { background: var(--slate); }
+.home { position: absolute; inset: 0; padding: calc(var(--sb-h) + 12px) 18px 18px; color: #FFFFFF; display: flex; flex-direction: column; gap: 16px; }
+.home-top { display: flex; align-items: center; gap: 12px; }
+.home-top small { color: #C7D0D5; display: block; }
+.home-top b { display: block; font: 700 21px/1.2 var(--f-display); }
+.acct { background: #FFFFFF; color: var(--ink); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+.acct small { font-weight: 600; color: var(--muted); }
+.acct b { font: 700 26px/1.1 var(--f-display); font-variant-numeric: tabular-nums; }
+.quick-app { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; font-size: 11px; color: #E2E8EB; }
+.quick-app span::before { content: ""; display: block; width: 46px; height: 46px; margin: 0 auto 6px; border-radius: 15px; background: rgba(255,255,255,.12); }
+.ask-sidi { margin-top: auto; margin-bottom: 18px; align-self: flex-end; display: flex; align-items: center; gap: 8px; background: #FFFFFF; color: var(--ink); border: 0; border-radius: 999px; padding: 6px 16px 6px 6px; font-weight: 700; }
+.ask-sidi .av { width: 34px; height: 34px; }
+.sidi-sheet {
+  position: absolute; inset: calc(var(--sb-h) + 6px) 0 0 0; z-index: 4;
+  background: #FFFFFF; border-radius: 24px 24px 0 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: transform .35s cubic-bezier(.2,.8,.2,1);
+}
+.sidi-sheet.closed { transform: translateY(105%); }
+.a-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.a-head .av { width: 38px; height: 38px; }
+.a-head b { display: block; font-size: 15px; }
+.a-head small { color: var(--muted); font-size: 12px; }
+.a-close { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--bot); font-size: 18px; line-height: 1; }
+
+/* ---------- Narrow viewports ---------- */
+@media (max-width: 1100px) {
+  .dsk > .screen { grid-template-columns: 64px 280px minmax(0, 1fr); }
+  .nav nav { display: none; }
+}
+@media (max-width: 860px) {
+  .bar-brand small { display: none; }
+  .tbtn .lbl { display: none; }
+  .dsk > .screen { grid-template-columns: minmax(0, 1fr); }
+  .d-rail, .d-list { display: none; }
+  .hero .wrap { grid-template-columns: 1fr; }
+  .quick .wrap, .prods .grid { grid-template-columns: 1fr 1fr; }
+  .nav-cta { display: none; }
+  .dsk-web .widget { right: 12px; left: 12px; bottom: 12px; width: auto; }
+}
+@media (max-width: 560px) {
+  .bar { gap: 8px; }
+  .bar-brand b { display: none; }
+  .sel span { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; }
+  .log { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar-brand"><span class="av" data-avatar></span><b>Sidi</b><small>GCB assistant prototype</small></div>
+  <div class="bar-controls">
+    <label class="sel"><span>Channel</span><select id="sel-ch" aria-label="Channel"></select></label>
+    <label class="sel"><span>Device</span><select id="sel-dev" aria-label="Device"></select></label>
+    <label class="sel"><span>Journey</span><select id="sel-jr" aria-label="Play a journey"></select></label>
+  </div>
+  <div class="bar-actions">
+    <button class="tbtn" id="fast" type="button" aria-pressed="false" title="Shorter typing delays"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg><span class="lbl">Fast</span></button>
+    <button class="tbtn" id="restart" type="button" title="Restart this conversation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Restart</span></button>
+  </div>
+</header>
+<main class="stage" id="stage"></main>
+
+<script>
+/* =========================================================
+   Demo data (all sample values)
+   ========================================================= */
+const DEMO = {
+  first: 'Ama', name: 'Ama Owusu', phone: '0244123567', phoneMasked: '024 ••• •567',
+  accounts: [
+    { id: 'cur', name: 'Current Account', no: '••4821', avail: 12450.80, ledger: 12700.80 },
+    { id: 'sav', name: 'Smart Savings', no: '••0937', avail: 38210.00, ledger: 38210.00 }
+  ],
+  txns: [
+    ['21 Oct', 'MoMo transfer to 055 ••• •290', -500.00],
+    ['20 Oct', 'ECG prepaid', -200.00],
+    ['19 Oct', 'ATM withdrawal, Osu', -1000.00],
+    ['18 Oct', 'Salary credit', 6850.00],
+    ['16 Oct', 'Shoprite, Accra Mall', -342.60]
+  ]
+};
+
+const RATES = {
+  fx: [['USD', 11.85, 12.40], ['GBP', 15.62, 16.31], ['EUR', 13.71, 14.36]],
+  fd: [['91 days', '14.50%'], ['182 days', '15.25%'], ['1 year', '16.00%']],
+  tb: [['91-day', '15.10%'], ['182-day', '15.60%'], ['364-day', '16.20%']],
+  loan: [['Personal loan', 'from 24.0%'], ['Car loan', 'from 26.0%'], ['Home loan', 'from 22.0%']]
+};
+
+const PRODUCTS = {
+  accounts: { label: 'Accounts', desc: 'Savings, current, student', items: [
+    { t: 'Everyday Savings', d: 'Earn interest on money you set aside.', f: ['Interest paid monthly', 'Open with your Ghana Card'], cta: 'Open this account', go: 'open' },
+    { t: 'Current Account', d: 'For salary, bills and everyday spending.', f: ['Chequebook available', 'Free mobile banking'], cta: 'Open this account', go: 'open' },
+    { t: 'Student Account', d: 'Made for tertiary students.', f: ['No minimum balance', 'Free debit card'], cta: 'Open this account', go: 'open' }
+  ]},
+  loans: { label: 'Loans', desc: 'Personal, car, home', items: [
+    { t: 'Personal Loan', d: 'For workers whose salary comes into GCB.', f: ['Repay over up to 60 months', 'Decision in 48 hours'], cta: 'Ask an advisor', go: 'agent' },
+    { t: 'Car Loan', d: 'Finance a new or used car.', f: ['Up to 80% of the price', 'Repay over up to 48 months'], cta: 'Ask an advisor', go: 'agent' },
+    { t: 'Home Loan', d: 'Buy, build or finish your home.', f: ['Up to 20 years', 'Cedi or dollar options'], cta: 'Ask an advisor', go: 'agent' }
+  ]},
+  cards: { label: 'Cards', desc: 'Debit and prepaid', items: [
+    { t: 'Debit Card', d: 'Pay in shops, online and at any ATM.', f: ['Works on gh-link ATMs', 'Contactless'], cta: 'Ask about this', go: 'agent' },
+    { t: 'Prepaid Card', d: 'Load it and spend online or abroad.', f: ['No account needed', 'Top up from the app'], cta: 'Ask about this', go: 'agent' }
+  ]},
+  investments: { label: 'Investments', desc: 'Fixed deposits, T-bills', items: [
+    { t: 'Fixed Deposit', d: 'Lock in a rate for 91 days to 1 year.', f: ['Rates from 14.50% p.a.', 'Interest at maturity'], cta: 'Ask an advisor', go: 'agent' },
+    { t: 'Treasury Bills', d: 'Government securities bought through GCB.', f: ['91, 182 and 364 days', 'Start from GHS 100'], cta: 'Ask an advisor', go: 'agent' }
+  ]},
+  digital: { label: 'Digital banking', desc: 'App, G-Money, internet banking', items: [
+    { t: 'GCB Mobile App', d: 'Transfers, bills and Sidi in your pocket.', f: ['Face ID or fingerprint login', 'Instant transfers'], cta: 'Get the app', go: 'getapp' },
+    { t: 'G-Money', d: 'GCB mobile wallet for everyone.', f: ['No bank account needed', 'Send to any network'], cta: 'Ask about this', go: 'agent' },
+    { t: 'Internet Banking', d: 'Full banking from your browser.', f: ['Bulk payments', 'Statements on demand'], cta: 'Ask about this', go: 'agent' }
+  ]}
+};
+
+const BRANCHES = [
+  { n: 'Ring Road Central', d: '1.2 km', h: 'Open until 4:30 pm', atm: 'ATM open 24/7' },
+  { n: 'Osu', d: '2.8 km', h: 'Open until 4:30 pm', atm: 'ATM open 24/7' },
+  { n: 'High Street (Head Office)', d: '4.1 km', h: 'Open until 4:30 pm', atm: '2 ATMs, open 24/7' }
+];
+
+/* =========================================================
+   Menus and option sets
+   ========================================================= */
+const PERSONA = [
+  { id: 'yes', label: 'Yes, I do', keys: ['yes', 'yeah', 'yep', 'i do', 'customer'] },
+  { id: 'no', label: 'Not yet', keys: ['no', 'nope', 'not yet', 'not a customer'] }
+];
+const MENU_CUSTOMER = [
+  { id: 'complaint', label: 'Lodge a complaint', desc: 'Failed transactions, cards, fees' },
+  { id: 'balance', label: 'Check balance', desc: 'Needs a quick security check' },
+  { id: 'products', label: 'Find products', desc: 'Accounts, loans, cards, investments' },
+  { id: 'rates', label: 'Check rates', desc: 'Exchange, deposits, T-bills, loans' },
+  { id: 'agent', label: 'Talk to an agent', desc: 'Chat with a person' }
+];
+const MENU_NEW = [
+  { id: 'open', label: 'Open a GCB account', desc: 'About 5 minutes with your Ghana Card' },
+  { id: 'complaint', label: 'Lodge a complaint', desc: 'Service, fraud or something else' },
+  { id: 'products', label: 'Find products', desc: 'Accounts, loans, cards, investments' },
+  { id: 'rates', label: 'Check rates', desc: 'Exchange, deposits, T-bills, loans' },
+  { id: 'branch', label: 'Find a branch or ATM', desc: 'Nearest to you' },
+  { id: 'agent', label: 'Talk to an agent', desc: 'Chat with a person' }
+];
+const COMPLAINT_CUSTOMER = [
+  { id: 'failed', label: 'Failed transaction', desc: 'ATM, transfer, MoMo, POS' },
+  { id: 'card', label: 'Card issue', desc: 'Captured, declined, lost' },
+  { id: 'digital', label: 'App or internet banking', desc: 'Login problems, errors' },
+  { id: 'charges', label: 'Charges or fees', desc: 'Deductions you did not expect' },
+  { id: 'fraud', label: 'Fraud or scam', desc: 'Handled right away' },
+  { id: 'service', label: 'Branch or staff service' },
+  { id: 'other', label: 'Something else' }
+];
+const COMPLAINT_NEW = [
+  { id: 'service', label: 'Branch or staff service' },
+  { id: 'fraud', label: 'Fraud or scam attempt', desc: 'Handled right away' },
+  { id: 'payin', label: 'Money sent to a GCB account' },
+  { id: 'other', label: 'Something else' }
+];
+const ACCOUNT_LINKED = ['failed', 'card', 'digital', 'charges'];
+const FAILED_TYPES = [
+  { id: 'atm', label: "ATM didn't pay out" },
+  { id: 'transfer', label: "Transfer didn't arrive" },
+  { id: 'momo', label: 'Mobile money transfer' },
+  { id: 'pos', label: 'POS or online payment' }
+];
+const CARD_TYPES = [
+  { id: 'captured', label: 'ATM kept my card' },
+  { id: 'declined', label: 'Card keeps getting declined' },
+  { id: 'lost', label: 'Card is lost or stolen' },
+  { id: 'notreceived', label: "Haven't received my card" }
+];
+const WHEN = ['Today', 'Yesterday', 'Earlier this week', 'Before that'].map(l => ({ id: l, label: l }));
+const ACCOUNT_TYPES = ['Everyday Savings', 'Current Account', 'Student Account'].map(l => ({ id: l, label: l }));
+
+const INTENTS = [
+  ['fraud', /\b(fraud|scam|scammer|stolen|hacked|lost (my )?card|block (my )?card|unauthori[sz]ed)\b/i],
+  ['agent', /\b(agent|human|person|someone|customer care|speak to|talk to)\b/i],
+  ['balance', /\b(balance|how much do i have|my money)\b/i],
+  ['track', /\b(track|status of|my complaint|reference)\b/i],
+  ['complaint', /(complain|complaint|issue|problem|not working|failed|didn'?t (pay|get|receive|arrive)|charged|deduct)/i],
+  ['open', /\b(open|new account|create an? account|sign ?up|join)\b/i],
+  ['rates', /\b(rates?|exchange|dollars?|usd|gbp|pounds?|euros?|forex|interest|t-?bills?|treasury|fixed deposits?)\b/i],
+  ['branch', /\b(branch|branches|atm|nearest|location|address|directions?)\b/i],
+  ['products', /\b(products?|loans?|cards?|invest|investments?|savings|mortgage|g-?money)\b/i],
+  ['done', /\b(thanks?|thank you|bye|that'?s all|goodbye|medaase)\b/i],
+  ['menu', /^(hi|hello|hey|menu|start|home|help|options|good (morning|afternoon|evening)|akwaaba|ete sen)\b/i]
+];
+
+const JOURNEYS = [
+  { ch: 'web', title: 'Check balance with an SMS code', steps: ['Yes, I do', 'Check balance', 'demo', 'Use code', 'All accounts', 'Recent transactions', "No, that's all", 'Helpful'] },
+  { ch: 'app', title: "Report an ATM that didn't pay", steps: ['Lodge a complaint', 'Failed transaction', 'ATM', 'Yesterday', '500', 'Skip', 'Submit complaint', 'Track this complaint', "No, that's all"] },
+  { ch: 'wa', title: 'Open an account with a Ghana Card', steps: ['Not yet', 'Open a GCB account', "Let's start", 'Everyday Savings', 'demo', 'Use code', 'Take selfie', "That's correct", 'Ring Road', 'Open my account', 'Get the GCB app'] },
+  { ch: 'ig', title: 'Ask for a balance on Instagram', steps: ['Yes, I do', 'Check balance', 'Continue on WhatsApp', 'Send code', 'Use code', 'Current'] },
+  { ch: 'x', title: 'Hand over to a live agent', steps: ['Yes, I do', 'Talk to an agent', 'My transfer', "That's all", 'Helpful'] },
+  { ch: 'web', title: 'Convert dollars to cedis', steps: ['Not yet', 'Check rates', 'Exchange rates', 'Convert an amount', 'USD', '500'] },
+  { ch: 'wa', title: 'Report a scam call', steps: ['Yes, I do', 'Lodge a complaint', 'Fraud or scam', 'Report it here', 'demo'] }
+];
+
+/* =========================================================
+   Helpers
+   ========================================================= */
+const $ = (sel, el = document) => el.querySelector(sel);
+const h = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k === 'class') e.className = v;
+    else if (k === 'html') e.innerHTML = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const k of kids.flat()) {
+    if (k == null || k === false) continue;
+    e.append(k.nodeType ? k : document.createTextNode(k));
+  }
+  return e;
+};
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const STALE = Symbol('stale');
+let SPEED = 1;
+const money = (n, cur = 'GHS') => `${cur} ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const now = () => new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+const stamp = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + now();
+const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rich = t => h('span', { html: esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') });
+const fmtPhone = d => `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+const maskPhone = d => `${d.slice(0, 3)} ••• •${d.slice(7)}`;
+const greeting = () => { const hr = new Date().getHours(); return hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening'; };
+const makeRef = p => { const d = new Date(); return `${p}-${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(Math.floor(10000 + Math.random() * 90000))}`; };
+const parseAmount = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return n > 0 ? { ok: true, value: n } : { ok: false, msg: 'Please enter an amount, like 500.' }; };
+const required = msg => v => v.trim().length > 1 ? { ok: true, value: v.trim() } : { ok: false, msg };
+const detectIntent = text => (INTENTS.find(([, re]) => re.test(text)) || [])[0] || null;
+const matchOption = (opts, text) => {
+  const t = norm(text);
+  if (!t) return null;
+  if (/^\d+$/.test(t)) return opts[+t - 1] || null;
+  return opts.find(o => norm(o.label) === t)
+    || opts.find(o => (o.keys || []).some(k => t === k || t.startsWith(k + ' ')))
+    || opts.find(o => t.length > 2 && (norm(o.label).includes(t) || t.includes(norm(o.label))))
+    || null;
+};
+const sendIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg>';
+const waBadge = '<svg class="badge" viewBox="0 0 24 24" aria-label="Verified business"><circle cx="12" cy="12" r="11" fill="#25D366"/><path d="m7 12.5 3.2 3.2L17 9" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>';
+const xBadge = '<svg class="badge" viewBox="0 0 24 24" aria-label="Verified organisation"><path fill="#E2B719" d="M12 1.5l2.6 2 3.2-.3.9 3.1 2.8 1.6-1 3.1 1 3.1-2.8 1.6-.9 3.1-3.2-.3-2.6 2-2.6-2-3.2.3-.9-3.1L2.5 15l1-3.1-1-3.1 2.8-1.6.9-3.1 3.2.3z"/><path d="m7.8 12.2 2.8 2.8 5.6-5.6" stroke="#000" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>';
+
+/* =========================================================
+   Cards
+   ========================================================= */
+const kvCard = (title, rows, foot) => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-title' }, title),
+  h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
+  foot ? h('div', { class: 'c-foot' }, foot) : null);
+
+const balanceCard = accts => h('div', { class: 'c-pad' },
+  accts.map(a => h('div', { class: 'bal' },
+    h('div', { class: 'c-label' }, `${a.name} ${a.no}`),
+    h('div', { class: 'bal-amt' }, money(a.avail)),
+    h('div', { class: 'c-sub' }, `Available · Ledger ${money(a.ledger)}`))),
+  h('div', { class: 'c-foot' }, `As at ${now()} today`));
+
+const txnCard = () => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-title' }, 'Current ••4821 · last 5'),
+  h('ul', { class: 'txns' }, DEMO.txns.map(([d, desc, amt]) => h('li', {},
+    h('span', { class: 't-d' }, d), h('span', {}, desc),
+    h('span', { class: 't-a ' + (amt < 0 ? 'neg' : 'pos') }, (amt < 0 ? '−' : '+') + money(Math.abs(amt)))))));
+
+const tableCard = (title, head, rows, foot) => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-title' }, title),
+  h('table', { class: 'tbl' },
+    h('thead', {}, h('tr', {}, head.map(x => h('th', {}, x)))),
+    h('tbody', {}, rows.map(r => h('tr', {}, r.map(x => h('td', {}, x)))))),
+  h('div', { class: 'c-foot' }, foot));
+
+const ticketCard = t => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-label' }, t.priority === 'High' ? 'Fraud report logged' : 'Complaint logged'),
+  h('div', { class: 'ref' }, t.ref),
+  h('dl', { class: 'kv' }, [['Issue', t.issue], ['Priority', t.priority], ['Logged', t.at]].flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
+  h('div', { class: 'c-foot' }, t.priority === 'High' ? 'A fraud specialist will call you within 1 hour' : 'Updates by SMS within 24 hours'));
+
+const trackCard = t => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-label' }, 'Complaint status'),
+  h('div', { class: 'ref' }, t.ref),
+  h('ol', { class: 'steps' },
+    h('li', { class: 'done' }, h('i'), h('span', {}, 'Logged', h('small', {}, t.at))),
+    h('li', { class: 'now' }, h('i'), h('span', {}, 'Being reviewed by Card Operations', h('small', {}, 'In progress'))),
+    h('li', {}, h('i'), h('span', {}, 'Resolved', h('small', {}, 'Expected by 29 Oct')))));
+
+const insightCard = () => h('div', { class: 'c-pad insight' },
+  h('span', { class: 'tag' }, 'Heads up'),
+  h('b', {}, 'DStv Premium, GHS 395.00, debits on 25 Oct.'),
+  h('span', { class: 'c-sub' }, 'Your Current ••4821 balance covers it.'));
+
+const selfieCard = () => h('div', { class: 'c-pad selfie-wrap' },
+  h('div', { class: 'selfie scan' }, h('img', { src: AV_URL, alt: '' })),
+  h('div', { class: 'c-sub', 'data-msg': '' }, 'Matching with your Ghana Card…'));
+
+const branchCard = place => {
+  const list = /accra|you/i.test(place) ? BRANCHES
+    : [{ n: `${place} Main`, d: '0.9 km', h: 'Open until 4:30 pm', atm: 'ATM open 24/7' }, { n: `${place} Central Market`, d: '2.3 km', h: 'Open until 4:00 pm', atm: 'ATM open 24/7' }];
+  return h('div', { class: 'c-pad' },
+    h('div', { class: 'c-title' }, place === 'you' ? 'Nearest to you' : `Near ${place}`),
+    h('ul', { class: 'branches' }, list.map(b => h('li', {}, h('b', {}, b.n), h('small', {}, `${b.d} · ${b.h} · ${b.atm}`)))));
+};
+
+const carousel = (items, onAct) => h('div', { class: 'carousel' }, items.map(it => h('article', { class: 'pcard' },
+  h('h4', {}, it.t), h('p', {}, it.d),
+  h('ul', {}, it.f.map(f => h('li', {}, f))),
+  h('button', { type: 'button', onclick: () => onAct(it) }, it.cta))));
+
+
+const CHANNELS = {
+  web: { label: 'Website', sensitive: true, avatar: true, hint: 'Type a message…' },
+  wa: { label: 'WhatsApp', sensitive: true, avatar: false, hint: 'Message' },
+  ig: { label: 'Instagram', sensitive: false, avatar: true, hint: 'Message…' },
+  x: { label: 'X', sensitive: false, avatar: true, hint: 'Start a message' },
+  app: { label: 'Mobile app', sensitive: true, avatar: true, hint: 'Ask Sidi anything…' }
+};
+const DEVICES = { desktop: 'Desktop', iphone: 'iPhone 17 Pro Max', galaxy: 'Samsung Galaxy S27' };
+
+/* Sidi's profile picture: a woman with an afro, on GCB gold */
+const AVATAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<rect width="64" height="64" fill="#F2B11B"/>
+<g fill="#2A1B12">
+<circle cx="32" cy="25" r="17"/><circle cx="19" cy="20" r="10.5"/><circle cx="45" cy="20" r="10.5"/>
+<circle cx="24" cy="11" r="9.5"/><circle cx="40" cy="11" r="9.5"/><circle cx="32" cy="9" r="10"/>
+<circle cx="14.5" cy="31" r="9"/><circle cx="49.5" cy="31" r="9"/><circle cx="17" cy="40" r="7"/><circle cx="47" cy="40" r="7"/>
+</g>
+<rect x="27.5" y="40" width="9" height="10" rx="4" fill="#6E4127"/>
+<path d="M12 64c0-10.5 8.5-16 20-16s20 5.5 20 16z" fill="#36424A"/>
+<path d="M27 48.5 32 54l5-5.5" fill="none" stroke="#F5F5F5" stroke-width="1.6" stroke-linejoin="round"/>
+<ellipse cx="32" cy="32" rx="10.5" ry="12.5" fill="#8B5734"/>
+<path d="M21.3 29c1.5-8.5 19.9-8.5 21.4 0-4.6-3.6-16.8-3.6-21.4 0z" fill="#2A1B12"/>
+<circle cx="21.6" cy="37.5" r="2.1" fill="#FFE08A"/><circle cx="42.4" cy="37.5" r="2.1" fill="#FFE08A"/>
+<path d="M25.6 29.4q2.4-1.2 4.6 0M33.8 29.4q2.4-1.2 4.6 0" stroke="#2A1B12" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+<circle cx="27.9" cy="32.3" r="1.25" fill="#1B110B"/><circle cx="36.1" cy="32.3" r="1.25" fill="#1B110B"/>
+<path d="M28.6 38.2q3.4 2.6 6.8 0" stroke="#4A2516" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+</svg>`;
+const AV_URL = 'data:image/svg+xml,' + encodeURIComponent(AVATAR_SVG);
+const avHTML = `<span class="av"><img src="${AV_URL}" alt=""></span>`;
+const avEl = () => h('span', { class: 'av', 'aria-hidden': 'true' }, h('img', { src: AV_URL, alt: '' }));
+
+/* Status bar glyphs */
+const SIG = '<svg width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>';
+const WIFI = '<svg width="16" height="12" viewBox="0 0 16 12" aria-hidden="true"><path d="M8 11.6 5.7 9.2a3.3 3.3 0 0 1 4.6 0zM2.9 6.4a7.2 7.2 0 0 1 10.2 0l-1.4 1.4a5.2 5.2 0 0 0-7.4 0zM.1 3.6a11.2 11.2 0 0 1 15.8 0l-1.4 1.4a9.2 9.2 0 0 0-13 0z"/></svg>';
+const BATT = '<svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.6" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="17" height="9" rx="2.2"/><path d="M25 4.5v4a2 2 0 0 0 0-4z" opacity=".4"/></svg>';
+const BATT_A = '<svg width="10" height="15" viewBox="0 0 10 15" aria-hidden="true"><rect x="3" y="0" width="4" height="2" rx=".6"/><rect x=".6" y="1.6" width="8.8" height="12.8" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.2"/><rect x="2.2" y="5" width="5.6" height="8" rx=".8"/></svg>';
+const clock = dev => {
+  const d = new Date();
+  return dev === 'iphone' ? `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, '0')}` : now();
+};
+const statusBar = dev => dev === 'iphone'
+  ? `<div class="statusbar"><span>${clock(dev)}</span><span class="island"></span><span class="icons">${SIG}${WIFI}${BATT}</span></div>`
+  : `<div class="statusbar"><span>${clock(dev)}</span><span class="punch"></span><span class="icons">${WIFI}${SIG}${BATT_A}</span></div>`;
+const phoneShell = (dev, ch, inner) => `<div class="device phone dev-${dev} ch-${ch}"><div class="screen">${statusBar(dev)}${inner}<span class="home-ind"></span></div></div>`;
+const composer = ch => `<form class="composer" autocomplete="off"><input id="in-${ch}" aria-label="Message" placeholder="${CHANNELS[ch].hint}"><button class="send" type="submit" aria-label="Send">${ch === 'ig' ? 'Send' : sendIcon}</button></form>`;
+
+/* Conversation pane for the messaging channels (same on phone and desktop) */
+const HEADS = {
+  wa: `<b>GCB Bank ${waBadge}</b><small>Sidi · Business account</small>`,
+  ig: `<b>gcbbankgh</b><small>GCB Bank · Sidi</small>`,
+  x: `<b>GCB Bank ${xBadge}</b><small>@gcbbankgh</small>`
+};
+const conversation = ch => `
+  <header class="ch-head"><span class="back" aria-hidden="true">‹</span>${avHTML}<div>${HEADS[ch]}</div></header>
+  <div class="log" aria-live="polite"></div>
+  ${ch === 'ig' ? '<div class="qr-dock"></div>' : ''}
+  ${composer(ch)}
+  ${ch === 'wa' ? '<div class="wa-sheet" hidden><div class="sheet-panel"><div class="sheet-grip"></div><header><button type="button" class="sheet-x" aria-label="Close">×</button>Choose an option</header><div class="sheet-list"></div></div></div>' : ''}`;
+
+/* Desktop messenger shells */
+const RAIL = {
+  wa: ['<path d="M4 20l1.4-4A8 8 0 1 1 8.6 19z"/>', '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/>', '<circle cx="9" cy="8" r="3.5"/><path d="M3 19c.8-3.4 3-5 6-5s5.2 1.6 6 5M16 5a3.5 3.5 0 0 1 0 7M18 14c1.6.6 2.6 2.2 3 5"/>'],
+  ig: ['<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>', '<circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/>', '<path d="M21 3 3 10l7 3 3 7z"/>'],
+  x: ['<path d="M5 5l14 14M19 5L5 19"/>', '<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>', '<circle cx="11" cy="11" r="7"/><path d="m16 16 4 4"/>', '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>']
+};
+const LISTS = {
+  wa: { title: 'Chats', items: [['Mum', 'Call me when you close', '10:42'], ['Kwame Asante', 'See you at 6', '09:15'], ['Office Team', 'Efo: Meeting moved to 2pm', 'Yesterday']] },
+  ig: { title: 'Messages', items: [['adwoa.designs', 'Sent a reel', '2h'], ['accrafoodies', 'Thanks for the tag!', '1d'], ['kofi.runs', 'See you Saturday', '3d']] },
+  x: { title: 'Messages', items: [['Ghana Tech Weekly', 'Thanks for sharing', '2h'], ['Esi Boateng', 'Haha, true', '1d'], ['Accra Devs', 'New meetup posted', '4d']] }
+};
+const desktopMessenger = ch => {
+  const l = LISTS[ch];
+  const rail = RAIL[ch].map((p, i) => `<span class="${i === (ch === 'x' ? 3 : 0) ? 'on' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true">${p}</svg></span>`).join('');
+  const others = l.items.map(([n, m, t]) => `<div class="d-item"><span class="ini">${n[0].toUpperCase()}</span><div><b>${n}</b><small>${m}</small></div><time>${t}</time></div>`).join('');
+  return `<div class="device dsk ch-${ch}"><div class="screen">
+    <nav class="d-rail" aria-hidden="true">${rail}<span class="me"></span></nav>
+    <aside class="d-list" aria-hidden="true"><header>${l.title}</header><div class="d-search">Search</div>
+      <div class="d-item on">${avHTML}<div><b>GCB Bank</b><small>Sidi · online</small></div><time>now</time></div>${others}</aside>
+    <section class="d-conv">${conversation(ch)}</section>
+  </div></div>`;
+};
+
+/* Website */
+const siteHTML = () => `
+  <div class="site">
+    <div class="util"><div class="wrap"><span class="on">Personal</span><span>Business</span><span>Corporate</span><span>Investor relations</span><span class="sp"></span><span>Contact us</span><span>Find a branch</span></div></div>
+    <header class="nav"><div class="wrap">
+      <span class="logo"><span class="roundel">GCB</span>GCB Bank</span>
+      <nav><span>Accounts</span><span>Cards</span><span>Loans</span><span>Investments</span><span>Digital banking</span></nav>
+      <span class="nav-cta"><span class="ghost">Internet banking</span><span class="solid">Open an account</span></span>
+      <span class="burger" aria-hidden="true">☰</span>
+    </div></header>
+    <section class="hero"><div class="wrap">
+      <div class="hero-copy">
+        <p class="eyebrow">Personal banking</p>
+        <h1>Banking that keeps up with you.</h1>
+        <p>Open an account with just your Ghana Card, pay bills and send money from anywhere in Ghana.</p>
+        <div class="cta"><span class="solid">Open an account</span><span class="ghost">Explore products</span></div>
+      </div>
+      <div class="hero-art" aria-hidden="true"><div class="art-card"><small>Everyday Savings</small><b>GHS 4,820.00</b><span>+ GHS 58.40 interest this month</span></div></div>
+    </div></section>
+    <section class="quick"><div class="wrap">
+      <div><b>Open an account</b><small>5 minutes with your Ghana Card</small></div>
+      <div><b>Exchange rates</b><small>Updated every morning</small></div>
+      <div><b>Find a branch</b><small>Branches and ATMs near you</small></div>
+      <div><b>Report fraud</b><small>Open 24 hours, every day</small></div>
+    </div></section>
+    <section class="rates-strip"><div class="wrap">
+      <b>Today's rates</b><span>USD 11.85 / 12.40</span><span>GBP 15.62 / 16.31</span><span>EUR 13.71 / 14.36</span><small>Buy / sell · sample rates</small>
+    </div></section>
+    <section class="prods"><div class="wrap">
+      <h2>Find the right account</h2>
+      <div class="grid">
+        <article><b>Everyday Savings</b><p>Earn interest on money you set aside, paid monthly.</p><span>Learn more</span></article>
+        <article><b>Current Account</b><p>For salary, bills and everyday spending.</p><span>Learn more</span></article>
+        <article><b>Student Account</b><p>No minimum balance and a free debit card.</p><span>Learn more</span></article>
+      </div>
+    </div></section>
+    <footer class="foot"><div class="wrap"><b>GCB Bank</b><span>Personal</span><span>Business</span><span>Careers</span><span>Privacy</span><span>Terms</span><span>Prototype · sample content</span></div></footer>
+  </div>
+  <div class="widget" role="dialog" aria-label="Chat with Sidi">
+    <header class="w-head">${avHTML}<div><b>Sidi</b><small>GCB digital assistant</small></div><button class="w-min" type="button" aria-label="Minimise chat">–</button></header>
+    <div class="log" aria-live="polite"></div>
+    ${composer('web')}
+    <div class="w-foot">Sidi is automated. Type "agent" any time to reach a person.</div>
+  </div>
+  <button class="launcher" type="button" hidden aria-label="Chat with Sidi"><span class="nudge">Hi, I'm Sidi. Need help?</span>${avHTML}</button>`;
+
+const FRAMES = {
+  web: dev => dev === 'desktop' ? `<div class="device dsk-web ch-web"><div class="screen">${siteHTML()}</div></div>` : phoneShell(dev, 'web', siteHTML()),
+  wa: dev => dev === 'desktop' ? desktopMessenger('wa') : phoneShell(dev, 'wa', conversation('wa')),
+  ig: dev => dev === 'desktop' ? desktopMessenger('ig') : phoneShell(dev, 'ig', conversation('ig')),
+  x: dev => dev === 'desktop' ? desktopMessenger('x') : phoneShell(dev, 'x', conversation('x')),
+  app: dev => phoneShell(dev, 'app', `
+    <div class="home">
+      <div class="home-top"><span class="av ini-av">AO</span><div><small>${greeting()}</small><b>Ama Owusu</b></div></div>
+      <div class="acct"><small>Current ••4821</small><b>GHS 12,450.80</b><small>Available balance</small></div>
+      <div class="quick-app"><span>Transfer</span><span>Pay bills</span><span>Airtime</span><span>G-Money</span></div>
+      <button class="ask-sidi" type="button">${avHTML}Ask Sidi</button>
+    </div>
+    <div class="sidi-sheet">
+      <header class="a-head">${avHTML}<div><b>Sidi</b><small>Signed in with ${dev === 'iphone' ? 'Face ID' : 'fingerprint'}</small></div><button class="a-close" type="button" aria-label="Close Sidi">×</button></header>
+      <div class="log" aria-live="polite"></div>
+      ${composer('app')}
+    </div>`)
+};
+
+/* =========================================================
+   Session: one live conversation per channel, re-mountable on any device
+   ========================================================= */
+class Session {
+  constructor(ch) {
+    this.ch = ch;
+    this.cfg = CHANNELS[ch];
+    this.flowId = 0;
+    this.autoplay = [];
+    this.started = false;
+    this.root = null;
+    this.device = null;
+    this.panelOpen = true;
+  }
+
+  mount(device) {
+    if (this.root && this.device === device) return;
+    const old = this.root;
+    const root = h('div', { html: FRAMES[this.ch](device).trim() }).firstElementChild;
+    const log = $('.log', root);
+    if (old) {
+      const oldLog = $('.log', old);
+      while (oldLog.firstChild) log.append(oldLog.firstChild);
+      const od = $('.qr-dock', old), nd = $('.qr-dock', root);
+      if (od && nd) while (od.firstChild) nd.append(od.firstChild);
+      old.remove();
+    }
+    this.root = root;
+    this.device = device;
+    this.log = log;
+    this.dock = $('.qr-dock', root);
+    this.screen = $('.screen', root);
+    this.input = $('.composer input', root);
+    $('#stage').append(root);
+
+    $('.composer', root).addEventListener('submit', e => {
+      e.preventDefault();
+      const v = this.input.value;
+      this.input.value = '';
+      this.autoplay = [];
+      this.onUserText(v);
+    });
+    if (this.ch === 'web') {
+      $('.w-min', root).onclick = () => this.setPanel(false);
+      $('.launcher', root).onclick = () => { this.setPanel(true); this.input.focus(); };
+    }
+    if (this.ch === 'app') {
+      $('.a-close', root).onclick = () => this.setPanel(false);
+      $('.ask-sidi', root).onclick = () => this.setPanel(true);
+    }
+    if (this.ch === 'wa') $('.sheet-x', root).onclick = () => this.closeSheet();
+    this.setPanel(this.panelOpen);
+    if (this.state) this.setHint(this.pending && this.pending.placeholder);
+    this.scroll();
+  }
+
+  setPanel(open) {
+    this.panelOpen = open;
+    if (this.ch === 'web') { $('.widget', this.root).hidden = !open; $('.launcher', this.root).hidden = open; }
+    if (this.ch === 'app') $('.sidi-sheet', this.root).classList.toggle('closed', !open);
+  }
+
+  reset(opts = {}) {
+    this.started = true;
+    clearTimeout(this.apTimer);
+    this.log.innerHTML = '';
+    if (this.dock) this.dock.innerHTML = '';
+    this.repliesEl = null;
+    this.closeSheet();
+    this.state = { isCustomer: this.ch === 'app' ? true : null, verified: this.ch === 'app', fails: 0, lastTopic: null, mode: 'bot', ticket: null, user: this.ch === 'app' ? DEMO.first : null };
+    this.autoplay = opts.autoplay ? [...opts.autoplay] : [];
+    this.setHint();
+    this.setPanel(true);
+    if (this.ch === 'wa') this.log.append(h('div', { class: 'sys enc' }, 'Messages are end-to-end encrypted. GCB Bank uses a secure service from Meta to manage this chat.'));
+    this.go('start', opts.handoff);
+  }
+
+  go(name, ...args) {
+    this.flowId++;
+    this.pending = null;
+    this.clearReplies();
+    const flow = F[name] || F.menu;
+    Promise.resolve().then(() => flow(this, ...args)).catch(e => { if (e !== STALE) console.error(e); });
+  }
+
+  check(id) { if (id !== this.flowId) throw STALE; }
+  async wait(ms) { const id = this.flowId; await sleep(ms * SPEED); this.check(id); }
+  async typing(len = 40) {
+    const id = this.flowId;
+    const t = this.row('bot typing', h('div', { class: 'bubble' }, h('span', { class: 'dots' }, h('i'), h('i'), h('i'))));
+    await sleep(Math.min(1300, 420 + len * 8) * SPEED);
+    t.remove();
+    this.check(id);
+  }
+  row(kind, content) {
+    const r = h('div', { class: 'row ' + kind });
+    if (this.cfg.avatar && kind.startsWith('bot')) r.append(avEl());
+    if (this.cfg.avatar && kind === 'agent') r.append(h('span', { class: 'av ini-av', 'aria-hidden': 'true' }, 'E'));
+    r.append(content);
+    this.log.append(r);
+    this.scroll();
+    return r;
+  }
+  scroll() { requestAnimationFrame(() => { this.log.scrollTop = this.log.scrollHeight; }); }
+  meta(user) { return this.ch === 'wa' ? h('span', { class: 'meta' }, now(), user ? h('span', { class: 'ticks' }, '✓✓') : null) : null; }
+
+  async say(text) { await this.typing(text.length); return this.row('bot', h('div', { class: 'bubble' }, rich(text), this.meta())); }
+  async card(node) { await this.typing(70); return this.row('bot', h('div', { class: 'bubble card' }, node)); }
+  async block(node) { await this.typing(70); return this.row('bot', node); }
+  async agentSay(text) { await this.typing(text.length * 1.4); return this.row('agent', h('div', { class: 'bubble' }, h('span', { class: 'who' }, 'Efua · GCB Customer Care'), rich(text), this.meta())); }
+  userBubble(text) { this.row('user', h('div', { class: 'bubble' }, text, this.meta(true))); }
+  sys(text) { this.log.append(h('div', { class: 'sys' }, text)); this.scroll(); }
+  setHint(text) { this.input.placeholder = text || this.cfg.hint; }
+  notify(app, body) {
+    const n = h('div', { class: 'notif', role: 'status' }, h('div', { class: 'notif-app' }, h('b', {}, app), h('span', {}, 'now')), h('div', {}, body));
+    this.screen.append(n);
+    setTimeout(() => n.classList.add('out'), 7000);
+    setTimeout(() => n.remove(), 7400);
+  }
+
+  async choose(prompt, options) {
+    const id = this.flowId;
+    if (prompt) await this.say(prompt);
+    this.check(id);
+    const opts = options.map(o => typeof o === 'string' ? { id: o, label: o } : o);
+    return new Promise(res => { this.pending = { type: 'choice', options: opts, res }; this.renderReplies(opts); });
+  }
+  async ask(prompt, cfg) {
+    const id = this.flowId;
+    if (prompt) await this.say(prompt);
+    this.check(id);
+    return new Promise(res => {
+      this.pending = { type: 'text', ...cfg, res };
+      this.setHint(cfg.placeholder);
+      this.renderReplies(cfg.chips || []);
+    });
+  }
+
+  onUserText(raw, picked) {
+    const text = String(raw ?? '').trim();
+    if (!text && !picked) return;
+    const p = this.pending;
+    const masked = p && p.mask && /^\d{6}$/.test(text.replace(/\s/g, ''));
+    this.userBubble(masked ? '••••••' : picked ? picked.label : text);
+    this.clearReplies();
+    if (this.state.mode === 'agent') return this.go('agentTurn', text);
+    this.setHint();
+
+    if (p && p.type === 'choice') {
+      const o = picked && p.options.includes(picked) ? picked : matchOption(p.options, text);
+      if (o) { this.pending = null; this.state.fails = 0; this.last = o; return p.res(o.id); }
+    } else if (p && p.type === 'text') {
+      const r = p.validate ? p.validate(text) : { ok: true, value: text };
+      if (r.ok) { this.pending = null; this.state.fails = 0; return p.res(r.value); }
+      const intent = !picked && detectIntent(text);
+      if (intent) return this.go(intent);
+      return this.retry(r.msg, p);
+    }
+    const intent = detectIntent(text);
+    if (intent) { this.state.fails = 0; return this.go(intent); }
+    this.state.fails++;
+    if (this.state.fails >= 2) return this.go('stuck');
+    if (p) return this.retry("I didn't catch that. Tap an option below, or say it another way.", p);
+    return this.go('menu', "I didn't catch that. Here's what I can help with:");
+  }
+
+  async retry(msg, p) {
+    try {
+      await this.say(msg);
+      if (this.pending === p) { this.renderReplies(p.type === 'choice' ? p.options : (p.chips || [])); if (p.placeholder) this.setHint(p.placeholder); }
+    } catch (e) { if (e !== STALE) console.error(e); }
+  }
+
+  renderReplies(opts) {
+    this.clearReplies();
+    const pick = o => () => { this.autoplay = []; clearTimeout(this.apTimer); this.onUserText(o.value ?? o.label, o); };
+    if (opts.length) {
+      let el;
+      if (this.ch === 'wa') {
+        el = h('div', { class: 'wa-btns' });
+        if (opts.length <= 3) opts.forEach(o => el.append(h('button', { type: 'button', onclick: pick(o) }, o.label)));
+        else el.append(h('button', { type: 'button', class: 'wa-list-btn', onclick: () => this.openSheet(opts, pick) }, h('span', { 'aria-hidden': 'true' }, '☰'), 'Choose an option'));
+        const rows = this.log.querySelectorAll('.row.bot, .row.agent');
+        (rows[rows.length - 1] || this.log).append(el);
+      } else if (this.ch === 'ig') {
+        el = h('div', { class: 'qr-pills' }, opts.map(o => h('button', { type: 'button', onclick: pick(o) }, o.label)));
+        this.dock.append(el);
+      } else if (this.ch === 'x') {
+        el = h('div', { class: 'x-opts' }, opts.map(o => h('button', { type: 'button', onclick: pick(o) }, o.label)));
+        this.log.append(el);
+      } else {
+        el = h('div', { class: 'qr-row' }, opts.map(o => h('button', { type: 'button', onclick: pick(o) }, o.label)));
+        this.log.append(el);
+      }
+      this.repliesEl = el;
+      this.scroll();
+    }
+    this.runAutoplay(opts);
+  }
+
+  clearReplies() {
+    if (this.repliesEl) {
+      if (this.ch === 'wa') { this.repliesEl.classList.add('used'); this.repliesEl.querySelectorAll('button').forEach(b => { b.disabled = true; }); }
+      else this.repliesEl.remove();
+      this.repliesEl = null;
+    }
+    this.closeSheet();
+  }
+
+  openSheet(opts, pick, highlight) {
+    const sheet = $('.wa-sheet', this.root), list = $('.sheet-list', sheet);
+    list.innerHTML = '';
+    opts.forEach(o => list.append(h('button', { type: 'button', class: 'sheet-row' + (o === highlight ? ' on' : ''), onclick: () => { this.closeSheet(); pick(o)(); } },
+      h('span', {}, h('b', {}, o.label), o.desc ? h('small', {}, o.desc) : null), h('i', { class: 'radio' }))));
+    sheet.hidden = false;
+  }
+  closeSheet() { const s = this.root && $('.wa-sheet', this.root); if (s) s.hidden = true; }
+
+  runAutoplay(opts) {
+    if (!this.autoplay.length) return;
+    clearTimeout(this.apTimer);
+    const pending = this.pending, flow = this.flowId;
+    this.apTimer = setTimeout(async () => {
+      if (this.pending !== pending || this.flowId !== flow) return;
+      const step = this.autoplay.shift();
+      if (step == null) return;
+      const o = opts.find(x => norm(x.label).includes(norm(step)));
+      if (o && this.ch === 'wa' && opts.length > 3) {
+        this.openSheet(opts, () => () => {}, o);
+        await sleep(900 * SPEED);
+        this.closeSheet();
+      }
+      if (o) this.onUserText(o.value ?? o.label, o); else this.onUserText(step);
+    }, 1000 * SPEED + 400);
+  }
+}
+
+/* =========================================================
+   Conversation flows
+   ========================================================= */
+const F = {};
+
+async function ensurePersona(s) {
+  if (s.state.isCustomer !== null) return;
+  const v = await s.choose('Quick question first: do you bank with GCB?', PERSONA);
+  s.state.isCustomer = v === 'yes';
+}
+
+const askPhone = (s, prompt, demo = '0244123567') => s.ask(prompt, {
+  placeholder: 'e.g. 024 412 3567',
+  chips: [{ label: `${fmtPhone(demo)} (demo)`, value: demo }],
+  validate: v => {
+    let d = v.replace(/\D/g, '');
+    if (/^233\d{9}$/.test(d)) d = '0' + d.slice(3);
+    return /^0[235]\d{8}$/.test(d) ? { ok: true, value: d } : { ok: false, msg: "That doesn't look like a Ghana mobile number. Try 10 digits, like 024 412 3567." };
+  }
+});
+
+F.start = async (s, handoff) => {
+  if (handoff) {
+    s.sys(`Continued from ${handoff.from}`);
+    s.state.isCustomer = handoff.intent !== 'open';
+    await s.say(`Hi again, it's Sidi. Let's finish what you started on ${handoff.from}.`);
+    return s.go(handoff.intent);
+  }
+  if (s.ch === 'app') {
+    await s.say(`${greeting()}, ${DEMO.first}. I'm Sidi, your GCB assistant.`);
+    await s.card(insightCard());
+    return F.menu(s, 'What can I help with?');
+  }
+  await s.say("Akwaaba! I'm Sidi, your digital assistant");
+  if (!s.cfg.sensitive) await s.say('For your safety, never share your PIN, card number or codes in DMs.');
+  const v = await s.choose('Do you bank with GCB?', PERSONA);
+  s.state.isCustomer = v === 'yes';
+  return F.menu(s, v === 'yes' ? 'Great. What can I help with?' : "Welcome! Here's what I can do for you.");
+};
+
+F.menu = async (s, prompt) => {
+  if (s.state.isCustomer === null) return F.start(s);
+  s.state.fails = 0;
+  const v = await s.choose(prompt || 'What can I help with?', s.state.isCustomer ? MENU_CUSTOMER : MENU_NEW);
+  return s.go(v);
+};
+
+F.next = async (s, extra = []) => {
+  const v = await s.choose('Anything else?', [...extra, { id: 'menu', label: 'Main menu' }, { id: 'done', label: "No, that's all" }]);
+  return s.go(v);
+};
+
+F.stuck = async s => {
+  s.state.fails = 0;
+  const v = await s.choose("Sorry, I'm still learning. Would you like to talk to a person?", [{ id: 'agent', label: 'Talk to an agent' }, { id: 'menu', label: 'Main menu' }]);
+  return s.go(v);
+};
+
+F.done = async s => {
+  s.state.mode = 'bot';
+  await s.say(`Glad I could help${s.state.user ? ', ' + s.state.user : ''}. Take care.`);
+  const v = await s.choose('How was this chat?', [{ id: 'up', label: 'Helpful' }, { id: 'down', label: 'Not helpful' }]);
+  if (v === 'down') {
+    const t = await s.ask('Sorry about that. What could I do better?', { placeholder: 'Your feedback', chips: [{ label: 'Skip', value: '' }], validate: x => ({ ok: true, value: x.trim() }) });
+    await s.say(t ? "Thanks. I've passed that to the team." : 'No problem.');
+  } else {
+    await s.say('Thank you! Your feedback helps Sidi improve.');
+  }
+  await s.choose(null, [{ id: 'menu', label: 'Start a new chat' }]);
+  return s.go('menu');
+};
+
+/* ---------- Security ---------- */
+F.verify = async s => {
+  if (s.state.verified) return true;
+  let masked;
+  if (s.ch === 'wa') {
+    const v = await s.choose(`Quick security check first. I'll text a 6-digit code to ${DEMO.phoneMasked}, the number on your account.`, [{ id: 'send', label: 'Send code' }, { id: 'no', label: 'Not now' }]);
+    if (v === 'no') { s.go('menu', 'No problem. Anything else?'); return false; }
+    masked = DEMO.phoneMasked;
+  } else {
+    await s.say('Quick security check first.');
+    masked = maskPhone(await askPhone(s, "What's the phone number on your GCB account?"));
+  }
+  if (!await F.otp(s, masked)) return false;
+  s.state.verified = true;
+  s.state.user = DEMO.first;
+  await s.say(`Thanks, ${DEMO.first}. You're verified.`);
+  return true;
+};
+
+F.otp = async (s, masked) => {
+  const code = String(100000 + Math.floor(Math.random() * 900000));
+  const send = () => s.notify('Messages', `GCB: ${code} is your Sidi verification code. It expires in 5 minutes. GCB staff will never ask for it.`);
+  send();
+  let tries = 3, prompt = `I've sent a code to ${masked}. Enter it here.`;
+  while (tries > 0) {
+    const val = await s.ask(prompt, {
+      placeholder: '6-digit code', mask: true,
+      chips: [{ label: `Use code ${code} (demo)`, value: code }, { label: 'Resend code', value: 'resend' }],
+      validate: v => {
+        if (/^resend/i.test(v)) return { ok: true, value: 'resend' };
+        const d = v.replace(/\s/g, '');
+        return /^\d{6}$/.test(d) ? { ok: true, value: d } : { ok: false, msg: 'The code has 6 digits.' };
+      }
+    });
+    if (val === 'resend') { send(); prompt = 'Sent again. Enter the code here.'; continue; }
+    if (val === code) return true;
+    tries--;
+    prompt = tries ? `That code doesn't match. ${tries} ${tries === 1 ? 'try' : 'tries'} left.` : null;
+  }
+  await s.say('Too many wrong codes. For your safety, verification is paused for 15 minutes.');
+  const v = await s.choose(null, [{ id: 'agent', label: 'Talk to an agent' }, { id: 'menu', label: 'Main menu' }]);
+  s.go(v);
+  return false;
+};
+
+F.secureHandoff = async (s, intent, what) => {
+  await s.say(`For your safety, I can't ${what} on ${s.cfg.label}. Let's move somewhere secure. I'll bring your request along.`);
+  const opts = [{ id: 'wa', label: 'Continue on WhatsApp' }];
+  if (intent === 'balance') opts.push({ id: 'app', label: 'Open the GCB app' });
+  opts.push({ id: 'menu', label: 'Main menu' });
+  const v = await s.choose(null, opts);
+  if (v === 'menu') return s.go('menu');
+  await s.say(v === 'wa' ? 'Opening WhatsApp…' : 'Opening the GCB app…');
+  await s.wait(700);
+  const rest = s.autoplay;
+  s.autoplay = [];
+  s.sys(`Moved to ${v === 'wa' ? 'WhatsApp' : 'the GCB app'}`);
+  switchChannel(v, { handoff: { intent, from: s.cfg.label }, autoplay: rest });
+};
+
+/* ---------- Balance ---------- */
+F.balance = async s => {
+  s.state.lastTopic = 'your account balance';
+  if (!s.cfg.sensitive) return F.secureHandoff(s, 'balance', 'show balances');
+  if (s.state.isCustomer === null) s.state.isCustomer = true;
+  if (!s.state.verified && !await F.verify(s)) return;
+  const v = await s.choose('Which account?', [{ id: 'cur', label: 'Current ••4821' }, { id: 'sav', label: 'Savings ••0937' }, { id: 'all', label: 'All accounts' }]);
+  await s.card(balanceCard(v === 'all' ? DEMO.accounts : DEMO.accounts.filter(a => a.id === v)));
+  if (v !== 'sav') await s.say('Heads up: your DStv debit of **GHS 395.00** is due on 25 Oct. You have enough to cover it.');
+  const n = await s.choose(null, [{ id: 'txns', label: 'Recent transactions' }, { id: 'menu', label: 'Main menu' }, { id: 'done', label: "No, that's all" }]);
+  return s.go(n);
+};
+
+F.txns = async s => {
+  await s.card(txnCard());
+  return F.next(s, [{ id: 'complaint', label: 'Report a transaction' }]);
+};
+
+/* ---------- Complaints ---------- */
+F.complaint = async s => {
+  s.state.lastTopic = 'a complaint';
+  await ensurePersona(s);
+  const cust = s.state.isCustomer;
+  const cat = await s.choose("Sorry you've had trouble. What is it about?", cust ? COMPLAINT_CUSTOMER : COMPLAINT_NEW);
+  if (cat === 'fraud') return F.fraud(s);
+  const c = { Issue: s.last.label };
+  s.state.lastTopic = `a complaint about ${s.last.label.toLowerCase()}`;
+
+  if (!s.cfg.sensitive) await s.say("Please don't share account or card numbers here. Your name and phone number are enough.");
+  else if (cust && ACCOUNT_LINKED.includes(cat) && !s.state.verified) {
+    await s.say("I'll verify you first, so I can link this to your account.");
+    if (!await F.verify(s)) return;
+  }
+
+  if (cat === 'failed') {
+    await s.choose('What happened?', FAILED_TYPES); c.Issue = s.last.label;
+    await s.choose('When was it?', WHEN); c.When = s.last.label;
+    const amt = await s.ask('How much was it?', { placeholder: 'Amount in GHS', chips: [200, 500, 1000].map(a => ({ label: money(a).replace('.00', ''), value: String(a) })), validate: parseAmount });
+    c.Amount = money(amt);
+  } else if (cat === 'card') {
+    const t = await s.choose("What's happening with your card?", CARD_TYPES); c.Issue = s.last.label;
+    if (t === 'lost') return F.fraud(s, 'lost');
+  }
+
+  const optional = cat === 'failed';
+  const d = await s.ask(optional ? 'Anything else we should know?' : 'Briefly, what happened?', {
+    placeholder: 'Describe the issue',
+    chips: optional ? [{ label: 'Skip', value: '' }] : [],
+    validate: v => (optional || v.trim().length > 2) ? { ok: true, value: v.trim() } : { ok: false, msg: 'Please add a few words so the team can help.' }
+  });
+  if (d) c.Details = d;
+
+  if (s.state.verified) c.Account = 'Current ••4821';
+  else {
+    const name = await s.ask('What name should we use?', { placeholder: 'Full name', chips: [{ label: 'Kofi Mensah (demo)', value: 'Kofi Mensah' }], validate: required('Please enter your name.') });
+    s.state.user = name.split(' ')[0];
+    c.Name = name;
+    c.Phone = s.ch === 'wa' ? 'This WhatsApp number' : maskPhone(await askPhone(s, 'And a phone number we can reach you on?', '0551234890'));
+  }
+
+  await s.card(kvCard('Check your complaint', Object.entries(c)));
+  const v = await s.choose(null, [{ id: 'submit', label: 'Submit complaint' }, { id: 'restart', label: 'Start over' }, { id: 'cancel', label: 'Cancel' }]);
+  if (v === 'restart') return s.go('complaint');
+  if (v === 'cancel') return s.go('menu', 'Okay, nothing was sent. Anything else?');
+  s.state.ticket = { ref: makeRef('CMP'), issue: c.Issue, priority: 'Standard', at: stamp() };
+  await s.card(ticketCard(s.state.ticket));
+  await s.say(`Keep this reference. Most issues like this are resolved within ${cat === 'failed' ? '5' : '10'} working days.`);
+  return F.next(s, [{ id: 'track', label: 'Track this complaint' }]);
+};
+
+F.track = async s => {
+  let t = s.state.ticket;
+  if (!t) {
+    const ref = await s.ask("What's your complaint reference?", {
+      placeholder: 'e.g. CMP-1021-48213',
+      chips: [{ label: 'CMP-1021-48213 (demo)', value: 'CMP-1021-48213' }],
+      validate: v => /^[a-z]{3}-?\d{4}-?\d{5}$/i.test(v.trim()) ? { ok: true, value: v.trim().toUpperCase() } : { ok: false, msg: 'References look like CMP-1021-48213.' }
+    });
+    t = { ref, at: '21 Oct, 10:12' };
+  }
+  await s.card(trackCard(t));
+  return F.next(s, [{ id: 'agent', label: 'Talk to an agent' }]);
+};
+
+F.fraud = async (s, mode) => {
+  s.state.lastTopic = mode === 'lost' ? 'a lost card' : 'a possible fraud';
+  if (s.state.isCustomer && s.cfg.sensitive) {
+    const v = await s.choose(mode === 'lost'
+      ? "Let's block that card right away so no one can use it."
+      : "Let's act fast. If you shared a PIN or code, or see money you didn't send, block your card now.",
+      [{ id: 'block', label: 'Block my card' }, { id: 'call', label: 'Call the fraud desk' }, { id: 'report', label: 'Report it here' }]);
+    if (v === 'call') return F.callDesk(s);
+    if (v === 'block') {
+      if (!await F.verify(s)) return;
+      await s.card(kvCard('Card blocked', [['Card', 'Debit ••5512'], ['Status', 'Blocked'], ['Time', stamp()]], 'Transfers and the app still work.'));
+      const n = await s.choose('Want a replacement card?', [{ id: 'yes', label: 'Yes, replace it' }, { id: 'no', label: 'Not now' }]);
+      if (n === 'yes') await s.say('Done. Your new card will be ready at Ring Road Central in 3 working days.');
+      return F.next(s, [{ id: 'fraudReport', label: 'Report what happened' }]);
+    }
+  } else {
+    const v = await s.choose('Thanks for telling us. GCB will never ask for your PIN, code or full card number by phone, SMS or DM.',
+      [{ id: 'report', label: 'Report it here' }, { id: 'call', label: 'Call the fraud desk' }]);
+    if (v === 'call') return F.callDesk(s);
+  }
+  return F.fraudReport(s);
+};
+
+F.fraudReport = async s => {
+  await s.ask('What happened? Include any names or numbers the scammer used.', {
+    placeholder: 'Describe what happened',
+    chips: [{ label: 'Someone called asking for my code (demo)', value: 'Someone called pretending to be from GCB and asked for my OTP.' }],
+    validate: required('Add a few words so our fraud team can act.')
+  });
+  s.state.ticket = { ref: makeRef('FRD'), issue: 'Fraud or scam report', priority: 'High', at: stamp() };
+  await s.card(ticketCard(s.state.ticket));
+  return F.next(s);
+};
+
+F.callDesk = async s => {
+  await s.card(kvCard('Fraud desk', [['Phone', '0302 000 000'], ['Hours', 'Open 24/7']], 'Demo number. Replace with the real fraud line.'));
+  return F.next(s, [{ id: 'fraudReport', label: 'Report it here instead' }]);
+};
+
+/* ---------- Products and rates ---------- */
+F.products = async s => {
+  s.state.lastTopic = 'our products';
+  const v = await s.choose('What are you looking for?', Object.entries(PRODUCTS).map(([id, p]) => ({ id, label: p.label, desc: p.desc })));
+  const p = PRODUCTS[v];
+  s.state.lastTopic = p.label.toLowerCase();
+  await s.say(`Here are our ${p.label.toLowerCase()}:`);
+  await s.block(carousel(p.items, it => {
+    s.autoplay = [];
+    s.userBubble(`${it.cta}: ${it.t}`);
+    s.state.lastTopic = it.t;
+    s.go(it.go, it.go === 'open' ? it.t : undefined);
+  }));
+  const first = s.state.isCustomer ? { id: 'agent', label: 'Talk to an advisor' } : { id: 'open', label: 'Open a GCB account' };
+  const n = await s.choose(null, [first, { id: 'products', label: 'Other products' }, { id: 'menu', label: 'Main menu' }]);
+  return s.go(n);
+};
+
+F.rates = async s => {
+  s.state.lastTopic = 'our rates';
+  const v = await s.choose('Which rates?', [{ id: 'fx', label: 'Exchange rates' }, { id: 'fd', label: 'Fixed deposits' }, { id: 'tb', label: 'Treasury bills' }, { id: 'loan', label: 'Loan rates' }]);
+  const foot = `Indicative sample rates · ${stamp()}`;
+  if (v === 'fx') {
+    await s.card(tableCard('Exchange rates', ['Currency', 'We buy', 'We sell'], RATES.fx.map(([c, b, x]) => [c, b.toFixed(2), x.toFixed(2)]), `GHS per unit · ${foot}`));
+    const n = await s.choose(null, [{ id: 'convert', label: 'Convert an amount' }, { id: 'rates', label: 'Other rates' }, { id: 'menu', label: 'Main menu' }]);
+    return s.go(n);
+  }
+  const map = { fd: ['Fixed deposit rates', 'Tenor', 'Rate p.a.'], tb: ['Treasury bill rates', 'Bill', 'Rate p.a.'], loan: ['Loan rates', 'Loan', 'Rate p.a.'] };
+  const [title, a, b] = map[v];
+  await s.card(tableCard(title, [a, b], RATES[v], foot));
+  return F.next(s, [{ id: 'rates', label: 'Other rates' }]);
+};
+
+F.convert = async s => {
+  const cur = await s.choose('Which currency do you need?', ['USD', 'GBP', 'EUR']);
+  const amt = await s.ask(`How many ${cur}?`, { placeholder: `Amount in ${cur}`, chips: [100, 500, 1000].map(a => ({ label: `${cur} ${a.toLocaleString()}`, value: String(a) })), validate: parseAmount });
+  const rate = RATES.fx.find(r => r[0] === cur)[2];
+  await s.say(`**${money(amt, cur)}** costs about **${money(amt * rate)}** at our selling rate of ${rate.toFixed(2)}.`);
+  return F.next(s, [{ id: 'convert', label: 'Convert another amount' }]);
+};
+
+/* ---------- Account opening ---------- */
+F.open = async (s, preType) => {
+  s.state.lastTopic = 'opening an account';
+  if (!s.cfg.sensitive) return F.secureHandoff(s, 'open', 'open accounts');
+  if (s.state.isCustomer && s.state.verified) {
+    await s.choose('Since I already know you, a new account takes one step. Which one?', ACCOUNT_TYPES);
+    await s.card(kvCard('Account opened', [['Type', s.last.label], ['Number', '1041 2271 0093'], ['Status', 'Active']], 'It now shows on your home screen.'));
+    return F.next(s);
+  }
+  if (s.state.isCustomer === null) s.state.isCustomer = false;
+  let v = await s.choose("You can open an account here in about 5 minutes. You'll need your Ghana Card and a phone that gets SMS.",
+    [{ id: 'go', label: "Let's start" }, { id: 'need', label: 'What else do I need?' }, { id: 'later', label: 'Not now' }]);
+  if (v === 'need') v = await s.choose("Nothing else. No forms and no branch visit. I'll also take a quick selfie to match your Ghana Card.", [{ id: 'go', label: "Let's start" }, { id: 'later', label: 'Not now' }]);
+  if (v === 'later') return s.go('menu', 'No problem. Anything else?');
+
+  let type = preType;
+  if (!type) { await s.choose('Which account would you like?', ACCOUNT_TYPES); type = s.last.label; }
+
+  await s.ask('Enter your Ghana Card number.', {
+    placeholder: 'GHA-000000000-0',
+    chips: [{ label: 'GHA-723456789-1 (demo)', value: 'GHA-723456789-1' }],
+    validate: x => { const c = x.toUpperCase().replace(/\s/g, ''); return /^GHA-?\d{9}-?\d$/.test(c) ? { ok: true, value: c } : { ok: false, msg: "That doesn't match the Ghana Card format. It looks like GHA-123456789-0." }; }
+  });
+
+  let masked;
+  if (s.ch === 'wa') { masked = '055 ••• •890'; await s.say(`I'll use this WhatsApp number, ${masked}, for your account.`); }
+  else masked = maskPhone(await askPhone(s, "What's your phone number?", '0551234890'));
+  if (!await F.otp(s, masked)) return;
+
+  await s.choose('Phone confirmed. Now a quick selfie to match your Ghana Card. Find good light and remove glasses.', [{ id: 'snap', label: 'Take selfie' }]);
+  const scan = await s.card(selfieCard());
+  await s.wait(1800);
+  $('.selfie', scan).classList.replace('scan', 'done');
+  $('[data-msg]', scan).innerHTML = '<span class="status-ok">Matched</span> with your Ghana Card record';
+
+  await s.card(kvCard('Your details from the Ghana Card', [['Name', 'Kofi Mensah'], ['Date of birth', '14 Mar 1998'], ['Digital address', 'GA-183-8164']]));
+  const ok = await s.choose('Is this correct?', [{ id: 'yes', label: "That's correct" }, { id: 'no', label: "Something's wrong" }]);
+  if (ok === 'no') { await s.say("I'll get a person to help fix that."); return s.go('agent'); }
+  s.state.user = 'Kofi';
+
+  await s.choose('Choose your home branch.', BRANCHES.map(b => ({ id: b.n, label: `${b.n.replace(' (Head Office)', '')} · ${b.d}` })));
+  const branch = s.last.label.split(' · ')[0];
+  const go = await s.choose(`Ready to open your ${type} at ${branch}?`, [{ id: 'open', label: 'Open my account' }, { id: 'terms', label: 'Read the terms' }]);
+  if (go === 'terms') {
+    await s.say('In short: no monthly fee, interest paid monthly, and you can close the account any time. Full terms come by SMS.');
+    await s.choose(null, [{ id: 'open', label: 'Open my account' }]);
+  }
+  s.state.isCustomer = true;
+  s.state.verified = true;
+  await s.card(h('div', { class: 'c-pad' },
+    h('div', { class: 'c-label' }, 'Account opened'),
+    h('div', { class: 'ref' }, '1041 2271 0093'),
+    h('dl', { class: 'kv' }, [['Type', type], ['Home branch', branch], ['Status', 'Active']].flatMap(([k, x]) => [h('dt', {}, k), h('dd', {}, x)])),
+    h('div', { class: 'c-foot' }, `Debit card ready at ${branch} in 3 working days`)));
+  s.notify('Messages', `GCB: Welcome, Kofi! Your ${type} 1041 2271 0093 is active.`);
+  await s.say("Welcome to GCB, Kofi. I've sent your details by SMS too.");
+  return F.next(s, [{ id: 'getapp', label: 'Get the GCB app' }]);
+};
+
+F.getapp = async s => {
+  if (s.ch === 'app') { await s.say("You're already in it."); return F.next(s); }
+  await s.say('Search "GCB" on the App Store or Google Play, then sign in with your account number and phone.');
+  const v = await s.choose(null, [{ id: 'show', label: 'Show me the app' }, { id: 'menu', label: 'Main menu' }]);
+  if (v === 'show') return switchChannel('app');
+  return s.go('menu');
+};
+
+/* ---------- Branches ---------- */
+F.branch = async s => {
+  s.state.lastTopic = 'finding a branch';
+  const v = await s.choose('Where should I look?', [{ id: 'loc', label: 'Use my location' }, { id: 'town', label: 'Type a town' }]);
+  let place = 'you';
+  if (v === 'town') place = await s.ask('Which town or area?', { placeholder: 'e.g. Kumasi', chips: ['Accra', 'Kumasi', 'Takoradi'].map(t => ({ label: t })), validate: required('Type a town name.') });
+  await s.card(branchCard(place));
+  return F.next(s, [{ id: 'agent', label: 'Talk to an agent' }]);
+};
+
+/* ---------- Live agent ---------- */
+F.agent = async s => {
+  const topic = s.state.lastTopic;
+  await s.say("Sure. I'll connect you to a person and share this chat, so you won't have to repeat yourself.");
+  s.sys("You're 2nd in line · about 1 min");
+  await s.wait(2400);
+  s.sys('Efua from GCB Customer Care joined');
+  s.state.mode = 'agent';
+  s.state.agentTurns = 0;
+  s.setHint('Message Efua…');
+  await s.agentSay(`Hi${s.state.user ? ' ' + s.state.user : ''}, I'm Efua.${topic ? ` I can see you were asking about ${topic}.` : ''} How can I help?`);
+  s.renderReplies([{ label: "My transfer hasn't arrived" }, { label: 'End chat' }]);
+};
+
+F.agentTurn = async (s, text) => {
+  if (/\b(end( chat)?|bye|that'?s all|back to sidi|no thanks)\b/i.test(text)) {
+    s.sys('Efua ended the chat');
+    s.state.mode = 'bot';
+    s.setHint();
+    return F.done(s);
+  }
+  s.setHint('Message Efua…');
+  if (/another question/i.test(text)) { await s.agentSay('Sure, go ahead.'); return; }
+  s.state.agentTurns++;
+  if (s.state.agentTurns === 1) {
+    await s.agentSay('Thanks. Give me a moment to check.');
+    await s.wait(900);
+    await s.agentSay("I've found it. It's been raised with the payments team, and you'll get an SMS update today. Anything else?");
+  } else {
+    await s.agentSay("Noted. I've added that to your case. Anything else?");
+  }
+  s.renderReplies([{ label: "That's all, thanks" }, { label: 'I have another question' }]);
+};
+
+
+/* =========================================================
+   Control bar wiring
+   ========================================================= */
+const sessions = {};
+let current = 'web';
+let device = 'desktop';
+
+function show(start = true) {
+  if (current === 'app' && device === 'desktop') device = 'iphone';
+  $('#stage').className = 'stage ' + (device === 'desktop' ? 'is-desktop' : 'is-phone');
+  Object.entries(sessions).forEach(([k, s]) => {
+    if (k === current) {
+      s.mount(device);
+      s.root.hidden = false;
+      if (start && !s.started) s.reset();
+    } else if (s.root) s.root.hidden = true;
+  });
+  $('#sel-ch').value = current;
+  $('#sel-dev').value = device;
+  $('#sel-dev option[value="desktop"]').disabled = current === 'app';
+}
+
+function switchChannel(ch, opts) {
+  current = ch;
+  show(!opts);
+  if (opts) sessions[ch].reset(opts);
+}
+
+function init() {
+  document.querySelectorAll('[data-avatar]').forEach(e => e.append(h('img', { src: AV_URL, alt: '' })));
+  const selCh = $('#sel-ch'), selDev = $('#sel-dev'), selJr = $('#sel-jr');
+  Object.entries(CHANNELS).forEach(([k, c]) => {
+    sessions[k] = new Session(k);
+    selCh.append(h('option', { value: k }, c.label));
+  });
+  Object.entries(DEVICES).forEach(([k, label]) => selDev.append(h('option', { value: k }, label)));
+  selJr.append(h('option', { value: '' }, 'Play a journey…'));
+  JOURNEYS.forEach((j, i) => selJr.append(h('option', { value: String(i) }, `${j.title} · ${CHANNELS[j.ch].label}`)));
+
+  selCh.onchange = () => switchChannel(selCh.value);
+  selDev.onchange = () => { device = selDev.value; show(); };
+  selJr.onchange = () => {
+    const j = JOURNEYS[+selJr.value];
+    selJr.value = '';
+    if (j) switchChannel(j.ch, { autoplay: j.steps });
+  };
+  $('#restart').onclick = () => sessions[current].reset();
+  $('#fast').onclick = e => {
+    const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
+    e.currentTarget.setAttribute('aria-pressed', String(on));
+    SPEED = on ? 0.35 : 1;
+  };
+  // Deep link, e.g. index.html#wa.iphone
+  const [c, d] = location.hash.slice(1).split('.');
+  if (CHANNELS[c]) current = c;
+  if (DEVICES[d]) device = d;
+  show();
+}
+init();
+</script>
+</body>
+</html>
