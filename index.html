@@ -263,7 +263,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .d-item b { display: block; font-weight: 600; font-size: 15px; }
 .d-item small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .d-item time { font-size: 12px; color: var(--muted); align-self: start; padding-top: 4px; }
-.d-conv { display: flex; flex-direction: column; min-width: 0; position: relative; }
+.dsk > .screen { grid-template-rows: minmax(0, 1fr); }
+.d-list { overflow-y: auto; }
+.d-conv { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
 .dsk .ch-head .back { display: none; }
 .dsk .ch-head { padding: 10px 20px; min-height: 60px; }
 .dsk .log { padding: 20px max(24px, 6%); }
