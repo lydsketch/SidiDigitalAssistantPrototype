@@ -113,6 +113,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .av.ini-av { display: grid; place-items: center; font: 700 12px/1 var(--f-ui); color: var(--slate); background: #D9DEE1; }
 .home-top .ini-av { width: 42px; height: 42px; font-size: 14px; background: rgba(255,255,255,.16); color: #FFFFFF; }
 
+/* Main menu cards (website, app) */
+.menu-cards { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 2px 36px; max-width: 476px; animation: rise .22s ease-out; }
+.menu-card {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: center;
+  text-align: left; background: #FFFFFF; border: 1px solid #ECECEC; border-radius: 14px; padding: 11px 12px;
+  transition: border-color .15s, box-shadow .15s;
+}
+.menu-card:hover { border-color: #D3D7DA; box-shadow: 0 2px 10px rgba(31, 35, 40, .06); }
+.mc-ico { width: 44px; height: 44px; border-radius: 12px; background: #FFF3D1; display: grid; place-items: center; }
+.mc-ico svg { width: 22px; height: 22px; fill: none; stroke: #8A5A00; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.menu-card b { display: block; font-size: 15px; font-weight: 700; line-height: 1.25; }
+.menu-card small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Quick replies (website, app) */
 .qr-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px 36px; animation: rise .22s ease-out; }
 .qr-row button, .qr-pills button {
@@ -549,37 +562,53 @@ const BRANCHES = [
 /* =========================================================
    Menus and option sets
    ========================================================= */
-const PERSONA = [
-  { id: 'yes', label: 'Yes, I bank with GCB', keys: ['yes', 'yeah', 'yep', 'i do', 'customer'] },
-  { id: 'no', label: 'Not yet', keys: ['no', 'nope', 'not yet', 'not a customer', 'new'] }
+const MENU_ICONS = {
+  accounts: '<rect x="5" y="4" width="14" height="16" rx="1.5"/><path d="M8 8h8M8 11h8M8 14h8M8 17h5"/>',
+  payments: '<path d="M5 9h13l-3-3M19 15H6l3 3"/>',
+  digital: '<rect x="8" y="3" width="8" height="18" rx="2"/><path d="M11 18h2"/>',
+  support: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/><path d="m6.3 6.3 3.4 3.4m4.6 4.6 3.4 3.4m0-11.4-3.4 3.4m-4.6 4.6-3.4 3.4"/>'
+};
+const MAIN_MENU = [
+  { id: 'accounts', label: 'Accounts & products', desc: 'Balances, statements, accounts, loans and more', icon: MENU_ICONS.accounts },
+  { id: 'payments', label: 'Payments & cards', desc: 'Transfers, payments and card support', icon: MENU_ICONS.payments },
+  { id: 'digital', label: 'Digital banking', desc: 'Mobile App, Internet Banking and USSD', icon: MENU_ICONS.digital },
+  { id: 'support', label: 'Help & support', desc: 'Complaints, enquiries and human assistance', icon: MENU_ICONS.support }
 ];
-const MENU_CUSTOMER = [
-  { id: 'complaint', label: 'Lodge a complaint', desc: 'Failed transactions, cards, fees' },
-  { id: 'balance', label: 'Check balance', desc: 'Needs a quick security check' },
-  { id: 'products', label: 'Find products', desc: 'Accounts, loans, cards, investments' },
-  { id: 'rates', label: 'Check rates', desc: 'Exchange, deposits, T-bills, loans' },
-  { id: 'agent', label: 'Talk to an agent', desc: 'Chat with a person' }
-];
-const MENU_NEW = [
-  { id: 'open', label: 'Open a GCB account', desc: 'About 5 minutes with your Ghana Card' },
-  { id: 'complaint', label: 'Lodge a complaint', desc: 'Service, fraud or something else' },
-  { id: 'products', label: 'Find products', desc: 'Accounts, loans, cards, investments' },
-  { id: 'rates', label: 'Check rates', desc: 'Exchange, deposits, T-bills, loans' },
-  { id: 'branch', label: 'Find a branch or ATM', desc: 'Nearest to you' },
-  { id: 'agent', label: 'Talk to an agent', desc: 'Chat with a person' }
-];
-const COMPLAINT_CUSTOMER = [
+const SUBMENUS = {
+  accounts: ['Sure. What would you like to do?', [
+    { id: 'balance', label: 'Check my balance' },
+    { id: 'statement', label: 'Get a statement' },
+    { id: 'open', label: 'Open an account' },
+    { id: 'products', label: 'Explore products and loans' },
+    { id: 'rates', label: 'Check rates' }
+  ]],
+  payments: ['Happy to help. What do you need?', [
+    { id: 'complaint:failed', label: 'Report a failed transaction' },
+    { id: 'complaint:card', label: 'Card problem' },
+    { id: 'fraud:lost', label: 'Block a lost or stolen card' },
+    { id: 'sendMoney', label: 'How to send money' }
+  ]],
+  digital: ['Got it. What can I help with?', [
+    { id: 'getapp', label: 'Get the mobile app' },
+    { id: 'login', label: 'Login or PIN problem' },
+    { id: 'ibank', label: 'Internet banking' },
+    { id: 'ussd', label: 'Banking with USSD' }
+  ]],
+  support: ['Of course. How can I help?', [
+    { id: 'complaint', label: 'Lodge a complaint' },
+    { id: 'track', label: 'Track a complaint' },
+    { id: 'fraud', label: 'Report fraud or a scam' },
+    { id: 'branch', label: 'Find a branch or ATM' },
+    { id: 'agent', label: 'Talk to a person' }
+  ]]
+};
+const COMPLAINT_TYPES = [
   { id: 'failed', label: 'Failed transaction', desc: 'ATM, transfer, MoMo, POS' },
   { id: 'card', label: 'Card issue', desc: 'Captured, declined, lost' },
   { id: 'digital', label: 'App or internet banking', desc: 'Login problems, errors' },
   { id: 'charges', label: 'Charges or fees', desc: 'Deductions you did not expect' },
   { id: 'fraud', label: 'Fraud or scam', desc: 'Handled right away' },
   { id: 'service', label: 'Branch or staff service' },
-  { id: 'other', label: 'Something else' }
-];
-const COMPLAINT_NEW = [
-  { id: 'service', label: 'Branch or staff service' },
-  { id: 'fraud', label: 'Fraud or scam attempt', desc: 'Handled right away' },
   { id: 'payin', label: 'Money sent to a GCB account' },
   { id: 'other', label: 'Something else' }
 ];
@@ -599,18 +628,54 @@ const CARD_TYPES = [
 const WHEN = ['Today', 'Yesterday', 'Earlier this week', 'Before that'].map(l => ({ id: l, label: l }));
 const ACCOUNT_TYPES = ['Everyday Savings', 'Current Account', 'Student Account'].map(l => ({ id: l, label: l }));
 
+const FAQ = {
+  hours: { topic: 'branch opening hours', a: 'Most branches open from 8:30 am to 4:30 pm, Monday to Friday. ATMs work 24/7.', next: [{ id: 'branch', label: 'Find a branch' }] },
+  cheque: { topic: 'a chequebook', a: "You can request a chequebook in the GCB app under **Services**, or at your branch. It's usually ready within 5 working days.", next: [{ id: 'branch', label: 'Find a branch' }] },
+  details: { topic: 'updating your details', a: 'For your safety, phone numbers and addresses can only be changed at a branch. Bring your Ghana Card and it takes a few minutes.', next: [{ id: 'branch', label: 'Find a branch' }] },
+  limits: { topic: 'transfer limits', a: 'Transfer limits depend on your account and channel. You can view and change yours in the app under **Settings › Limits**.', next: [{ id: 'agent', label: 'Talk to a person' }] },
+  fees: { topic: 'fees and charges', a: 'All our fees are listed in the tariff guide, at any branch or on our website. If a charge looks wrong, I can log it for you.', next: [{ id: 'complaint:charges', label: 'Query a charge' }] },
+  swift: { topic: 'receiving money from abroad', a: "For money coming from abroad, the sender needs GCB's SWIFT code, your full name and your account number. A person from our team can confirm the exact details.", next: [{ id: 'agent', label: 'Talk to a person' }] },
+  momo: { topic: 'mobile money', a: 'You can move money between your GCB account and any mobile money wallet in the app or with USSD.', next: [{ id: 'sendMoney', label: 'How to send money' }] },
+  close: { topic: 'closing an account', a: "Sorry to hear that. Accounts are closed at a branch with your Ghana Card. If something's gone wrong, I'd love the chance to fix it first.", next: [{ id: 'agent', label: 'Talk to a person' }, { id: 'branch', label: 'Find a branch' }] }
+};
+
+// Light conversation that gets a reply without derailing the current step
+const SMALLTALK = [
+  [/\bhow are (you|u)\b|how'?s it going|how do you do/i, "I'm doing well, thanks for asking! How can I help you today?"],
+  [/\b(who|what) are you\b|\byour name\b|what can you do/i, "I'm Sidi, GCB Bank's digital assistant. I can check balances, log complaints, answer questions about products and rates, and bring in a person whenever you need one."],
+  [/\bare you (a |an )?(bot|robot|human|real|person|ai)\b/i, "I'm a virtual assistant, but a real person from our team is always one tap away."],
+  [/\b(useless|stupid|rubbish|nonsense|annoying|frustrat\w*|angry|fed up|waste of time)\b/i, "I'm sorry this has been frustrating. I don't want to waste your time. Shall I bring in a person?", true]
+];
+
 const INTENTS = [
   ['fraud', /\b(fraud|scam|scammer|stolen|hacked|lost (my )?card|block (my )?card|unauthori[sz]ed)\b/i],
+  ['complaint:card', /\bcard\b.{0,25}(swallow|captur|kept|declin|not work|stuck|expired|blocked)|atm (took|kept|swallowed)/i],
+  ['login', /(forgot|reset|change).{0,12}\b(pin|password)\b|can'?t (log ?in|sign in|access)|locked out|log ?in (issue|problem)/i],
+  ['faq:hours', /(opening|closing|working) (hours|times?)|what time .*(open|close)|open on (saturday|sunday|weekends?)/i],
+  ['faq:close', /\bclos(e|ing) (my )?account/i],
   ['agent', /\b(agent|human|person|someone|customer care|speak to|talk to)\b/i],
   ['balance', /\b(balance|how much do i have|my money)\b/i],
+  ['statement', /\bstatements?\b/i],
   ['track', /\b(track|status of|my complaint|reference)\b/i],
   ['complaint', /(complain|complaint|issue|problem|not working|failed|didn'?t (pay|get|receive|arrive)|charged|deduct)/i],
+  ['sendMoney', /\b(send|transfer) (money|cash|funds)\b|how (do|can) i (send|transfer)|make a transfer/i],
+  ['faq:cheque', /cheque ?book|check ?book/i],
+  ['faq:details', /(change|update).{0,20}(phone|number|address|email|details)/i],
+  ['faq:limits', /\blimits?\b/i],
+  ['faq:swift', /\b(swift|bic|sort code|iban|bank code|routing)\b/i],
+  ['faq:momo', /\b(momo|mobile money)\b/i],
+  ['faq:fees', /\b(fees?|tariffs?|charges)\b/i],
   ['open', /\b(open|new account|create an? account|sign ?up|join)\b/i],
   ['rates', /\b(rates?|exchange|dollars?|usd|gbp|pounds?|euros?|forex|interest|t-?bills?|treasury|fixed deposits?)\b/i],
   ['branch', /\b(branch|branches|atm|nearest|location|address|directions?)\b/i],
+  ['ussd', /\bussd\b|short ?code|\*\d+#/i],
+  ['ibank', /internet banking|online banking/i],
+  ['getapp', /\b(mobile )?app\b|\bdownload\b/i],
   ['products', /\b(products?|loans?|cards?|invest|investments?|savings|mortgage|g-?money)\b/i],
   ['done', /\b(thanks?|thank you|bye|that'?s all|goodbye|medaase)\b/i],
-  ['menu', /^(hi|hello|hey|menu|start|home|help|options|good (morning|afternoon|evening)|akwaaba|ete sen)\b/i]
+  ['hello', /^(hi|hello|hey|good (morning|afternoon|evening)|akwaaba|ete sen)\b/i],
+  ['menu', /^(menu|main menu|start|home|help|options)\b/i],
+  ['offtopic', /\b(weather|football|soccer|match|score|joke|news|recipe|movie|music|song|crypto|bitcoin|election|politics)\b/i]
 ];
 
 /* =========================================================
@@ -964,7 +1029,9 @@ class Session {
     this.flowId++;
     this.pending = null;
     this.clearReplies();
-    const flow = F[name] || F.menu;
+    const [n, arg] = name.split(':');
+    const flow = F[n] || F.menu;
+    if (arg !== undefined) args = [arg, ...args];
     Promise.resolve().then(() => flow(this, ...args)).catch(e => { if (e !== STALE) console.error(e); });
   }
 
@@ -1051,12 +1118,19 @@ class Session {
       if (intent) return this.go(intent);
       return this.retry(r.msg, p);
     }
+    const small = SMALLTALK.find(([re]) => re.test(text));
+    if (small) {
+      this.state.fails = 0;
+      if (small[2]) return this.go('frustrated', small[1]);
+      return p ? this.retry(small[1], p) : this.go('menu', small[1]);
+    }
     const intent = detectIntent(text);
     if (intent) { this.state.fails = 0; return this.go(intent); }
     this.state.fails++;
+    this.state.unanswered = text;
     if (this.state.fails >= 2) return this.go('stuck');
-    if (p) return this.retry("I didn't catch that. Tap an option below, or say it another way.", p);
-    return this.go('menu', "I didn't catch that. Here's what I can help with:");
+    if (p) return this.retry("Sorry, I didn't quite get that. You can tap an option, or tell me in your own words.", p);
+    return this.go('unknown');
   }
 
   async retry(msg, p) {
@@ -1082,6 +1156,11 @@ class Session {
         this.dock.append(el);
       } else if (this.ch === 'x') {
         el = h('div', { class: 'x-opts' }, opts.map(o => h('button', { type: 'button', onclick: pick(o) }, o.label)));
+        this.log.append(el);
+      } else if (opts.some(o => o.icon)) {
+        el = h('div', { class: 'menu-cards' }, opts.map(o => h('button', { type: 'button', class: 'menu-card', onclick: pick(o) },
+          h('span', { class: 'mc-ico', html: `<svg viewBox="0 0 24 24" aria-hidden="true">${o.icon}</svg>` }),
+          h('span', {}, h('b', {}, o.label), h('small', {}, o.desc)))));
         this.log.append(el);
       } else {
         el = h('div', { class: 'qr-row' }, opts.map(o => h('button', { type: 'button', onclick: pick(o) }, o.label)));
@@ -1135,12 +1214,6 @@ class Session {
    ========================================================= */
 const F = {};
 
-async function ensurePersona(s) {
-  if (s.state.isCustomer !== null) return;
-  const v = await s.choose('To serve you better, could you tell me if you already bank with GCB?', PERSONA);
-  s.state.isCustomer = v === 'yes';
-}
-
 const askPhone = (s, prompt, demo = '0244123567') => s.ask(prompt, {
   placeholder: 'e.g. 024 412 3567',
   chips: [{ label: `${fmtPhone(demo)} (demo)`, value: demo }],
@@ -1154,27 +1227,51 @@ const askPhone = (s, prompt, demo = '0244123567') => s.ask(prompt, {
 F.start = async (s, handoff) => {
   if (handoff) {
     s.sys(`Continued from ${handoff.from}`);
-    s.state.isCustomer = handoff.intent !== 'open';
     await s.say(`Hi again, it's Sidi. Let's finish what you started on ${handoff.from}.`);
     return s.go(handoff.intent);
   }
   if (s.ch === 'app') {
-    await s.say(`${greeting()}, ${DEMO.first}. I'm Sidi, your GCB assistant.`);
+    await s.say(`${greeting()}, ${DEMO.first}! I'm Sidi, your digital assistant.`);
     await s.card(insightCard());
-    return F.menu(s, 'What can I help with?');
+    return F.menu(s, '**What would you like help with today?**');
   }
-  await s.say("Akwaaba! I'm Sidi, your digital assistant");
-  if (!s.cfg.sensitive) await s.say('For your safety, never share your PIN, card number or codes in DMs.');
-  const v = await s.choose("To serve you better, could you tell me if you already bank with GCB? I'll show you the options that fit you.", PERSONA);
-  s.state.isCustomer = v === 'yes';
-  return F.menu(s, v === 'yes' ? 'Great. What can I help with?' : "Welcome! Here's what I can do for you.");
+  if (!s.cfg.sensitive) s.sys('For your safety, never share PINs, card numbers or codes in DMs.');
+  await s.say("Welcome! I'm Sidi, your digital assistant.");
+  return F.menu(s, 'I can help you find information, resolve issues and explore GCB Bank services.\n\n**What would you like help with today?**');
 };
 
 F.menu = async (s, prompt) => {
-  if (s.state.isCustomer === null) return F.start(s);
   s.state.fails = 0;
-  const v = await s.choose(prompt || 'What can I help with?', s.state.isCustomer ? MENU_CUSTOMER : MENU_NEW);
+  const v = await s.choose(prompt || '**What else can I help you with?**', MAIN_MENU);
   return s.go(v);
+};
+
+const submenu = key => async s => {
+  const [prompt, opts] = SUBMENUS[key];
+  const v = await s.choose(prompt, [...opts, { id: 'menu', label: 'Something else' }]);
+  return s.go(v);
+};
+F.accounts = submenu('accounts');
+F.payments = submenu('payments');
+F.digital = submenu('digital');
+F.support = submenu('support');
+
+F.hello = s => F.menu(s, 'Hi there! Good to hear from you. **What can I help you with today?**');
+
+F.unknown = s => F.menu(s, "Hmm, I'm not sure I understood that, and I'd rather not guess. Could you say it another way, or pick a topic below?");
+
+F.offtopic = s => F.menu(s, "I wish I could help with that, but banking is my speciality. Here's what I can do for you:");
+
+F.frustrated = async (s, msg) => {
+  const v = await s.choose(msg, [{ id: 'agent', label: 'Yes, connect me' }, { id: 'menu', label: "No, let's keep going" }]);
+  return s.go(v);
+};
+
+F.faq = async (s, key) => {
+  const f = FAQ[key];
+  s.state.lastTopic = f.topic;
+  await s.say(f.a);
+  return F.next(s, f.next);
 };
 
 F.next = async (s, extra = []) => {
@@ -1184,7 +1281,7 @@ F.next = async (s, extra = []) => {
 
 F.stuck = async s => {
   s.state.fails = 0;
-  const v = await s.choose("Sorry, I'm still learning. Would you like to talk to a person?", [{ id: 'agent', label: 'Talk to an agent' }, { id: 'menu', label: 'Main menu' }]);
+  const v = await s.choose("Sorry, I'm still not getting it. Someone from our team can help, and I'll pass on what you wrote so you don't have to repeat yourself.", [{ id: 'agent', label: 'Talk to a person' }, { id: 'menu', label: 'Back to menu' }]);
   return s.go(v);
 };
 
@@ -1281,17 +1378,16 @@ F.txns = async s => {
 };
 
 /* ---------- Complaints ---------- */
-F.complaint = async s => {
+F.complaint = async (s, preset) => {
   s.state.lastTopic = 'a complaint';
-  await ensurePersona(s);
-  const cust = s.state.isCustomer;
-  const cat = await s.choose("Sorry you've had trouble. What is it about?", cust ? COMPLAINT_CUSTOMER : COMPLAINT_NEW);
+  const cat = preset || await s.choose("I'm sorry you've had trouble. What's it about?", COMPLAINT_TYPES);
   if (cat === 'fraud') return F.fraud(s);
-  const c = { Issue: s.last.label };
-  s.state.lastTopic = `a complaint about ${s.last.label.toLowerCase()}`;
+  const label = COMPLAINT_TYPES.find(t => t.id === cat).label;
+  const c = { Issue: label };
+  s.state.lastTopic = `a complaint about ${label.toLowerCase()}`;
 
   if (!s.cfg.sensitive) await s.say("Please don't share account or card numbers here. Your name and phone number are enough.");
-  else if (cust && ACCOUNT_LINKED.includes(cat) && !s.state.verified) {
+  else if (ACCOUNT_LINKED.includes(cat) && !s.state.verified) {
     await s.say("I'll verify you first, so I can link this to your account.");
     if (!await F.verify(s)) return;
   }
@@ -1348,7 +1444,7 @@ F.track = async s => {
 
 F.fraud = async (s, mode) => {
   s.state.lastTopic = mode === 'lost' ? 'a lost card' : 'a possible fraud';
-  if (s.state.isCustomer && s.cfg.sensitive) {
+  if (s.cfg.sensitive) {
     const v = await s.choose(mode === 'lost'
       ? "Let's block that card right away so no one can use it."
       : "Let's act fast. If you shared a PIN or code, or see money you didn't send, block your card now.",
@@ -1398,7 +1494,7 @@ F.products = async s => {
     s.state.lastTopic = it.t;
     s.go(it.go, it.go === 'open' ? it.t : undefined);
   }));
-  const first = s.state.isCustomer ? { id: 'agent', label: 'Talk to an advisor' } : { id: 'open', label: 'Open a GCB account' };
+  const first = s.state.verified ? { id: 'agent', label: 'Talk to an advisor' } : { id: 'open', label: 'Open a GCB account' };
   const n = await s.choose(null, [first, { id: 'products', label: 'Other products' }, { id: 'menu', label: 'Main menu' }]);
   return s.go(n);
 };
@@ -1430,7 +1526,7 @@ F.convert = async s => {
 F.open = async (s, preType) => {
   s.state.lastTopic = 'opening an account';
   if (!s.cfg.sensitive) return F.secureHandoff(s, 'open', 'open accounts');
-  if (s.state.isCustomer && s.state.verified) {
+  if (s.state.verified) {
     await s.choose('Since I already know you, a new account takes one step. Which one?', ACCOUNT_TYPES);
     await s.card(kvCard('Account opened', [['Type', s.last.label], ['Number', '1041 2271 0093'], ['Status', 'Active']], 'It now shows on your home screen.'));
     return F.next(s);
@@ -1493,6 +1589,44 @@ F.getapp = async s => {
   return s.go('menu');
 };
 
+/* ---------- Statements and how-to answers ---------- */
+F.statement = async s => {
+  s.state.lastTopic = 'a statement';
+  if (!s.cfg.sensitive) return F.secureHandoff(s, 'statement', 'send statements');
+  if (!s.state.verified && !await F.verify(s)) return;
+  await s.choose('Which period would you like?', ['Last month', 'Last 3 months', 'Last 6 months']);
+  const period = s.last.label;
+  const how = await s.choose('How should I send it?', [{ id: 'email', label: 'Email me a PDF' }, { id: 'here', label: 'Show recent ones here' }]);
+  if (how === 'here') return F.txns(s);
+  await s.card(kvCard('Statement sent', [['Account', 'Current ••4821'], ['Period', period], ['Sent to', 'a••••@gmail.com']], 'The PDF is password-protected with your date of birth.'));
+  return F.next(s);
+};
+
+F.sendMoney = async s => {
+  s.state.lastTopic = 'sending money';
+  await s.say('You can send money to any bank account or mobile money wallet from the GCB app, internet banking or USSD. In the app, tap **Transfer**, pick who to pay, then confirm with your PIN.');
+  return F.next(s, [{ id: 'complaint:failed', label: "A transfer didn't arrive" }]);
+};
+
+F.login = async s => {
+  s.state.lastTopic = 'a login problem';
+  await s.say("Sorry you're locked out. On the app's login screen, tap **Forgot PIN** and follow the steps with your card details. It takes about 2 minutes.");
+  const v = await s.choose(null, [{ id: 'complaint:digital', label: 'Still not working' }, { id: 'done', label: 'That fixed it' }, { id: 'menu', label: 'Main menu' }]);
+  return s.go(v);
+};
+
+F.ibank = async s => {
+  s.state.lastTopic = 'internet banking';
+  await s.say('Internet banking lets you pay bills, make bulk payments and download statements from your browser. You can register at any branch, or in the app under **Settings**.');
+  return F.next(s, [{ id: 'login', label: "I can't log in" }]);
+};
+
+F.ussd = async s => {
+  s.state.lastTopic = 'USSD banking';
+  await s.say("No data? No problem. Dial GCB's USSD short code from the phone number linked to your account to check your balance, buy airtime and send money.");
+  return F.next(s, [{ id: 'getapp', label: 'Get the app instead' }]);
+};
+
 /* ---------- Branches ---------- */
 F.branch = async s => {
   s.state.lastTopic = 'finding a branch';
@@ -1505,7 +1639,8 @@ F.branch = async s => {
 
 /* ---------- Live agent ---------- */
 F.agent = async s => {
-  const topic = s.state.lastTopic;
+  const topic = s.state.unanswered ? `“${s.state.unanswered}”` : s.state.lastTopic;
+  s.state.unanswered = null;
   await s.say("Sure. I'll connect you to a person and share this chat, so you won't have to repeat yourself.");
   s.sys("You're 2nd in line · about 1 min");
   await s.wait(2400);
