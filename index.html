@@ -513,7 +513,7 @@ a.solid, a.ghost { text-decoration: none; }
    Demo data (all sample values)
    ========================================================= */
 const DEMO = {
-  first: 'Ama', name: 'Ama Owusu', phone: '0244123567', phoneMasked: '024 ••• •567',
+  first: 'Ama', name: 'Ama Owusu', phone: '0244123567', phoneMasked: '••• ••• 3567',
   accounts: [
     { id: 'cur', name: 'Current Account', no: '••4821', avail: 12450.80 },
     { id: 'sav', name: 'Smart Savings', no: '••0937', avail: 38210.00 }
@@ -713,8 +713,7 @@ const stamp = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', mon
 const norm = t => String(t).toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const rich = t => h('span', { html: esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>') });
-const fmtPhone = d => `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
-const maskPhone = d => `${d.slice(0, 3)} ••• •${d.slice(7)}`;
+const maskPhone = d => `••• ••• ${d.slice(-4)}`;
 const greeting = () => { const hr = new Date().getHours(); return hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening'; };
 const makeRef = p => { const d = new Date(); return `${p}-${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(Math.floor(10000 + Math.random() * 90000))}`; };
 const parseAmount = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return n > 0 ? { ok: true, value: n } : { ok: false, msg: 'Please enter an amount, like 500.' }; };
@@ -1197,8 +1196,11 @@ class Session {
     if (!text && !picked) return;
     this.maskBalances();
     const p = this.pending;
-    const masked = p && p.mask && /^\d{6}$/.test(text.replace(/\s/g, ''));
-    this.userBubble(masked ? '••••••' : picked ? picked.label : text);
+    // Never echo codes or phone numbers back in full
+    let shown = picked ? picked.label : text;
+    if (p && p.mask && /^\d{6}$/.test(text.replace(/\s/g, ''))) shown = '••••••';
+    else if (p && p.maskAs) { const r = p.validate(text); if (r.ok) shown = p.maskAs(r.value); }
+    this.userBubble(shown);
     this.clearReplies();
     if (this.state.mode === 'agent') return this.go('agentTurn', text);
     this.setHint();
@@ -1317,7 +1319,8 @@ const F = {};
 
 const askPhone = (s, prompt, demo = '0244123567') => s.ask(prompt, {
   placeholder: 'e.g. 024 412 3567',
-  chips: [{ label: `${fmtPhone(demo)} (demo)`, value: demo }],
+  chips: [{ label: `Use demo number ${maskPhone(demo)}`, value: demo }],
+  maskAs: maskPhone,
   validate: v => {
     let d = v.replace(/\D/g, '');
     if (/^233\d{9}$/.test(d)) d = '0' + d.slice(3);
@@ -1670,7 +1673,7 @@ F.open = async (s, preType) => {
   });
 
   let masked;
-  if (s.ch === 'wa') { masked = '055 ••• •890'; await s.say(`I'll use this WhatsApp number, ${masked}, for your account.`); }
+  if (s.ch === 'wa') { masked = '••• ••• 4890'; await s.say(`I'll use this WhatsApp number, ${masked}, for your account.`); }
   else masked = maskPhone(await askPhone(s, "What's your phone number?", '0551234890'));
   if (!await F.otp(s, masked)) return;
 
