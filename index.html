@@ -1349,13 +1349,20 @@ F.menu = async (s, prompt) => {
 
 const submenu = key => async s => {
   const [prompt, opts] = SUBMENUS[key];
-  const v = await s.choose(prompt, [...opts, { id: 'menu', label: 'Something else' }]);
+  const v = await s.choose(prompt, [...opts, { id: 'askOther', label: 'Something else' }]);
   return s.go(v);
 };
 F.accounts = submenu('accounts');
 F.payments = submenu('payments');
 F.digital = submenu('digital');
 F.support = submenu('support');
+
+// "Something else" keeps the conversation going instead of starting over:
+// whatever the customer types next is read for intents and keywords as usual
+F.askOther = async s => {
+  const v = await s.choose("Sure. Tell me what you need in a few words, and I'll find the right help.", [{ id: 'menu', label: 'Show all topics' }]);
+  return s.go(v);
+};
 
 F.hello = s => F.menu(s, 'Hi there! Good to hear from you. **What can I help you with today?**');
 
@@ -1371,7 +1378,7 @@ F.suggest = async (s, hint) => {
   }
   const opts = hint.options.map(id => ({ id, label: CAPS[id][0] }));
   if (!hint.options.includes('agent')) opts.push({ id: 'agent', label: 'Talk to a person' });
-  const v = await s.choose('I think I can help with that. Which of these is closest?', [...opts, { id: 'menu', label: 'Something else' }]);
+  const v = await s.choose('I think I can help with that. Which of these is closest?', [...opts, { id: 'askOther', label: 'Something else' }]);
   if (v !== 'agent') s.state.unanswered = null;
   return s.go(v);
 };
