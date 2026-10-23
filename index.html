@@ -19,6 +19,7 @@
   --stage: #E9EBEC;
   --gold: #F2B11B;
   --gold-deep: #A87406;
+  --accent: #F9C305;
   --ok: #1F8A57;
   --alert: #B4361E;
   --bar-h: 56px;
@@ -35,7 +36,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 [hidden] { display: none !important; }
 
 /* ---------- Avatar ---------- */
-.av { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: block; background: var(--gold); }
+.av { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 50%; overflow: hidden; display: block; background: #FFF3D1; }
+.av img { object-fit: cover; }
 .av img { width: 100%; height: 100%; display: block; }
 
 /* ---------- Control bar ---------- */
@@ -65,7 +67,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 }
 .bar-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .tbtn { height: 36px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 0 12px; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.tbtn:hover { border-color: #C9CDD0; }
+.tbtn:hover { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .tbtn[aria-pressed="true"] { background: var(--slate); border-color: var(--slate); color: #fff; }
 .tbtn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -120,7 +122,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   text-align: left; background: #FFFFFF; border: 1px solid #ECECEC; border-radius: 14px; padding: 11px 12px;
   transition: border-color .15s, box-shadow .15s;
 }
-.menu-card:hover { border-color: #D3D7DA; box-shadow: 0 2px 10px rgba(31, 35, 40, .06); }
+.menu-card:hover { background: var(--accent); border-color: var(--accent); box-shadow: 0 2px 10px rgba(31, 35, 40, .08); }
+.menu-card:hover small { color: #4A3B00; }
+.menu-card:hover .mc-ico { background: #FFFFFF; }
 .mc-ico { width: 44px; height: 44px; border-radius: 12px; background: #FFF3D1; display: grid; place-items: center; }
 .mc-ico svg { width: 22px; height: 22px; fill: none; stroke: #8A5A00; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .menu-card b { display: block; font-size: 15px; font-weight: 700; line-height: 1.25; }
@@ -128,7 +132,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 /* Link out to a website from a card */
 .link-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; background: var(--slate); color: #FFFFFF; border-radius: 999px; padding: 9px 14px; font-weight: 600; font-size: 13px; text-decoration: none; }
-.link-btn:hover { background: #2A343B; }
+.link-btn:hover { background: var(--accent); color: var(--ink); }
 .link-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .c-url { font: 500 12px/1.3 var(--f-mono); color: var(--sub-fg); overflow-wrap: anywhere; }
 a.solid, a.ghost { text-decoration: none; }
@@ -140,7 +144,7 @@ a.solid, a.ghost { text-decoration: none; }
   border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 13px; line-height: 1.2;
   transition: background .15s, color .15s;
 }
-.qr-row button:hover, .qr-pills button:hover { background: var(--slate); color: #FFFFFF; }
+.qr-row button:hover, .qr-pills button:hover { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 
 /* Rich cards */
 .bubble.card { padding: 0; background: var(--card-bg); border: 1px solid var(--card-line); width: min(86%, 380px); max-width: min(86%, 380px); overflow: hidden; }
@@ -200,15 +204,52 @@ a.solid, a.ghost { text-decoration: none; }
 .pcard p { margin: 0; font-size: 13px; color: var(--sub-fg); }
 .pcard ul { margin: 0; padding-left: 16px; font-size: 12px; flex: 1; }
 .pcard button { border: 0; border-radius: 999px; background: var(--slate); color: #FFFFFF; padding: 7px 10px; font-weight: 600; font-size: 12px; }
+.pcard button:hover, .ch-x .pcard button:hover { background: var(--accent); color: var(--ink); }
 
 .composer { display: flex; gap: 8px; align-items: center; padding: 10px 12px var(--home-pad); background: var(--composer-bg); border-top: 1px solid var(--line); flex: 0 0 auto; }
-.composer input {
-  flex: 1; min-width: 0; border: 1px solid var(--field-line); background: var(--field-bg); color: var(--ink);
-  border-radius: 999px; padding: 10px 14px; font: 14px var(--f-ui);
+.field {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px;
+  border: 1px solid var(--field-line); background: var(--field-bg); border-radius: 999px; padding: 2px 4px;
 }
-.composer input::placeholder { color: var(--sub-fg); }
+.field input[type="text"] { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--ink); padding: 8px 4px; font: 14px var(--f-ui); }
+.field input[type="text"]:focus-visible { outline: none; }
+.field:focus-within { box-shadow: 0 0 0 2px var(--accent); }
+.field input::placeholder { color: var(--sub-fg); }
+.c-ico { width: 34px; height: 34px; flex: 0 0 auto; border: 0; border-radius: 50%; background: transparent; color: var(--sub-fg); display: grid; place-items: center; }
+.c-ico:hover { background: var(--accent); color: var(--ink); }
+.c-ico svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rec { display: none; flex: 1; min-width: 0; align-items: center; gap: 8px; padding: 0 4px; }
+.field.recording { background: #FFF6CF; }
+.field.recording input[type="text"], .field.recording .attach { display: none; }
+.field.recording .rec { display: flex; }
+.field.recording .mic { background: #D93025; color: #FFFFFF; }
+.field.recording .mic svg { fill: currentColor; stroke: none; }
+.rec-dot { width: 9px; height: 9px; border-radius: 50%; background: #D93025; animation: blink 1s infinite; flex: 0 0 auto; }
+.rec-time { font: 500 13px var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.rec-bars { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; height: 22px; overflow: hidden; }
+.rec-bars i { width: 3px; border-radius: 2px; background: var(--slate); opacity: .7; animation: wave 0.9s ease-in-out infinite; }
+@keyframes wave { 0%, 100% { height: 4px; } 50% { height: 18px; } }
+.rec .rec-cancel { width: 28px; height: 28px; }
 .send { border: 0; border-radius: 999px; width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; background: var(--slate); }
+.send:hover { background: var(--accent); }
+.send:hover svg { fill: var(--ink); }
 .send svg { width: 18px; height: 18px; fill: #FFFFFF; }
+
+/* Voice notes and attachments in the chat */
+.voice { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.vplay { width: 32px; height: 32px; flex: 0 0 auto; border: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .18); color: inherit; }
+.vplay:hover { background: var(--accent); color: var(--ink); }
+.vplay svg { width: 14px; height: 14px; fill: currentColor; }
+.vwave { flex: 1; display: flex; align-items: center; gap: 2px; height: 24px; }
+.vwave i { flex: 1; max-width: 3px; border-radius: 2px; background: currentColor; opacity: .55; }
+.vwave i.on { opacity: 1; }
+.vdur { font: 500 12px var(--f-mono); opacity: .8; }
+.vtext { display: block; font-size: 12px; opacity: .75; margin-top: 4px; font-style: italic; }
+.att { display: flex; flex-direction: column; gap: 6px; }
+.att img { display: block; max-width: 200px; max-height: 180px; border-radius: 10px; object-fit: cover; }
+.att-file { display: flex; align-items: center; gap: 10px; }
+.att-file span.ic { width: 34px; height: 40px; border-radius: 6px; background: rgba(255,255,255,.18); display: grid; place-items: center; font: 700 10px var(--f-ui); }
+.att-file small { display: block; opacity: .75; font-size: 12px; }
 
 .notif {
   position: absolute; top: calc(var(--sb-h) + 6px); left: 10px; right: 10px; z-index: 40;
@@ -315,7 +356,7 @@ a.solid, a.ghost { text-decoration: none; }
 .ch-wa .carousel { align-self: stretch; }
 .wa-btns { display: flex; flex-direction: column; gap: 3px; width: min(80%, 380px); }
 .wa-btns button { background: #FFFFFF; color: #027EB5; border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; font-weight: 600; font-size: 14px; }
-.wa-btns button:hover { background: var(--bot); }
+.wa-btns button:hover { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .wa-btns.used button { color: #A0AAB0; cursor: default; background: #FFFFFF; }
 .wa-list-btn { display: flex; gap: 6px; justify-content: center; align-items: center; }
 .ch-wa .send { background: #00A884; }
@@ -327,7 +368,7 @@ a.solid, a.ghost { text-decoration: none; }
 .sheet-panel header { display: flex; align-items: center; gap: 12px; padding: 6px 16px 10px; font-weight: 600; font-size: 15px; }
 .sheet-panel header button { background: transparent; border: 0; font-size: 22px; line-height: 1; color: #54656F; }
 .sheet-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; text-align: left; background: transparent; border: 0; border-top: 1px solid #E9EDEF; padding: 11px 18px; color: #111B21; }
-.sheet-row:hover { background: #F5F6F6; }
+.sheet-row:hover { background: #FFF6CF; }
 .sheet-row b { display: block; font-weight: 500; font-size: 15px; }
 .sheet-row small { color: #667781; font-size: 13px; }
 .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #8696A0; flex: 0 0 auto; }
@@ -343,7 +384,7 @@ a.solid, a.ghost { text-decoration: none; }
 .qr-pills { display: flex; gap: 8px; }
 .ch-ig .qr-pills button { white-space: nowrap; }
 .ch-ig .composer { border-top: 0; }
-.ch-ig .composer input { border: 1px solid #DBDBDB; background: #FFFFFF; }
+.ch-ig .field { border: 1px solid #DBDBDB; background: #FFFFFF; }
 .ch-ig .send { background: transparent; width: auto; padding: 0 6px; color: #4A5DF9; font-weight: 700; }
 
 /* ---------- X (light) ---------- */
@@ -352,7 +393,7 @@ a.solid, a.ghost { text-decoration: none; }
 .ch-x .row.user .bubble { border-bottom-right-radius: 4px; }
 .x-opts { display: flex; flex-direction: column; gap: 8px; width: min(80%, 300px); margin: 4px 0 4px 36px; animation: rise .22s ease-out; }
 .x-opts button { background: #FFFFFF; border: 1px solid #CFD9DE; color: #1D9BF0; border-radius: 999px; padding: 8px 14px; font-weight: 700; }
-.x-opts button:hover { background: #E8F5FD; }
+.x-opts button:hover { background: var(--accent); border-color: var(--accent); color: var(--ink); }
 .ch-x .send { background: transparent; }
 .ch-x .send svg { fill: #1D9BF0; }
 
@@ -413,13 +454,13 @@ a.solid, a.ghost { text-decoration: none; }
   box-shadow: 0 24px 60px rgba(31, 35, 40, .22), 0 0 0 1px rgba(31, 35, 40, .06);
   animation: rise .3s ease-out;
 }
-.w-head { background: var(--slate); color: #FFFFFF; padding: 12px 14px; display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
-.w-head .av { width: 38px; height: 38px; box-shadow: 0 0 0 2px rgba(255,255,255,.25); }
+.w-head { background: var(--accent); color: var(--ink); padding: 12px 14px; display: flex; gap: 10px; align-items: center; flex: 0 0 auto; }
+.w-head .av { width: 38px; height: 38px; box-shadow: 0 0 0 2px #FFFFFF; }
 .w-head b { display: block; font-size: 15px; }
-.w-head small { color: #D7DEE2; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.w-head small { color: #4A3B00; font-size: 12px; display: flex; align-items: center; gap: 6px; }
 .w-head small::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; }
-.w-min { margin-left: auto; background: transparent; border: 0; color: #FFFFFF; font-size: 22px; width: 32px; height: 32px; border-radius: 8px; line-height: 1; }
-.w-min:hover { background: rgba(255,255,255,.14); }
+.w-min { margin-left: auto; background: transparent; border: 0; color: var(--ink); font-size: 22px; width: 32px; height: 32px; border-radius: 8px; line-height: 1; }
+.w-min:hover { background: rgba(31, 35, 40, .1); }
 .w-foot { font-size: 11px; color: var(--muted); text-align: center; padding: 0 12px 8px; background: #FFFFFF; flex: 0 0 auto; }
 .launcher { position: absolute; right: 24px; bottom: 24px; z-index: 8; display: flex; align-items: center; gap: 10px; background: transparent; border: 0; padding: 0; }
 .launcher .av { width: 60px; height: 60px; box-shadow: 0 10px 24px rgba(31,35,40,.3); }
@@ -463,11 +504,12 @@ a.solid, a.ghost { text-decoration: none; }
   transition: transform .35s cubic-bezier(.2,.8,.2,1);
 }
 .sidi-sheet.closed { transform: translateY(105%); }
-.a-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
-.a-head .av { width: 38px; height: 38px; }
+.a-head { display: flex; align-items: center; gap: 10px; padding: 14px 16px 12px; background: var(--accent); color: var(--ink); }
+.a-head .av { width: 38px; height: 38px; box-shadow: 0 0 0 2px #FFFFFF; }
 .a-head b { display: block; font-size: 15px; }
-.a-head small { color: var(--muted); font-size: 12px; }
-.a-close { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: var(--bot); font-size: 18px; line-height: 1; }
+.a-head small { color: #4A3B00; font-size: 12px; }
+.a-close { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255,255,255,.55); font-size: 18px; line-height: 1; }
+.a-close:hover { background: #FFFFFF; }
 
 /* ---------- Narrow viewports ---------- */
 @media (max-width: 1100px) {
@@ -514,6 +556,11 @@ a.solid, a.ghost { text-decoration: none; }
    ========================================================= */
 const DEMO = {
   first: 'Ama', name: 'Ama Owusu', phone: '0244123567', phoneMasked: '••• ••• 3567',
+  cards: [
+    { id: 'c5512', name: 'Visa Debit', no: '••5512', linked: 'Current ••4821' },
+    { id: 'c2208', name: 'gh-link Debit', no: '••2208', linked: 'Smart Savings ••0937' },
+    { id: 'c7731', name: 'Prepaid Visa', no: '••7731', linked: 'Prepaid wallet' }
+  ],
   accounts: [
     { id: 'cur', name: 'Current Account', no: '••4821', avail: 12450.80 },
     { id: 'sav', name: 'Smart Savings', no: '••0937', avail: 38210.00 }
@@ -696,6 +743,7 @@ const INTENTS = [
    Helpers
    ========================================================= */
 const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const h = (tag, attrs = {}, ...kids) => {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
@@ -905,6 +953,26 @@ const linkCard = (title, url, cta, foot) => h('div', { class: 'c-pad' },
     h('span', { html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>' })),
   foot ? h('div', { class: 'c-foot' }, foot) : null);
 
+// Phrases used for voice notes when the browser can't record or transcribe (e.g. no microphone permission)
+const VOICE_SAMPLES = ['My ATM card is lost', 'I want to check my balance', 'Where is the nearest branch?'];
+
+const voiceNote = (url, secs, transcript) => {
+  const bars = Array.from({ length: 28 }, (_, i) => h('i', { style: `height:${6 + Math.round(Math.abs(Math.sin(i * 1.7 + secs)) * 16)}px` }));
+  const dur = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const audio = url ? new Audio(url) : null;
+  const btn = h('button', { type: 'button', class: 'vplay', 'aria-label': 'Play voice note', html: ICO.play });
+  btn.onclick = () => {
+    if (!audio) return;
+    if (audio.paused) { audio.play(); btn.innerHTML = ICO.pause; } else { audio.pause(); btn.innerHTML = ICO.play; }
+  };
+  if (audio) {
+    audio.onended = () => { btn.innerHTML = ICO.play; bars.forEach(b => b.classList.remove('on')); };
+    audio.ontimeupdate = () => { const n = Math.round((audio.currentTime / (audio.duration || secs)) * bars.length); bars.forEach((b, i) => b.classList.toggle('on', i < n)); };
+  }
+  return h('span', {}, h('span', { class: 'voice' }, btn, h('span', { class: 'vwave' }, bars), h('span', { class: 'vdur' }, dur)),
+    transcript ? h('span', { class: 'vtext' }, `“${transcript}”`) : null);
+};
+
 const kvCard = (title, rows, foot) => h('div', { class: 'c-pad' },
   h('div', { class: 'c-title' }, title),
   h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
@@ -976,25 +1044,8 @@ const CHANNELS = {
 };
 const DEVICES = { desktop: 'Desktop', iphone: 'iPhone 17 Pro Max', galaxy: 'Samsung Galaxy S27' };
 
-/* Sidi's profile picture: a woman with an afro, on GCB gold */
-const AVATAR_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-<rect width="64" height="64" fill="#F2B11B"/>
-<g fill="#2A1B12">
-<circle cx="32" cy="25" r="17"/><circle cx="19" cy="20" r="10.5"/><circle cx="45" cy="20" r="10.5"/>
-<circle cx="24" cy="11" r="9.5"/><circle cx="40" cy="11" r="9.5"/><circle cx="32" cy="9" r="10"/>
-<circle cx="14.5" cy="31" r="9"/><circle cx="49.5" cy="31" r="9"/><circle cx="17" cy="40" r="7"/><circle cx="47" cy="40" r="7"/>
-</g>
-<rect x="27.5" y="40" width="9" height="10" rx="4" fill="#6E4127"/>
-<path d="M12 64c0-10.5 8.5-16 20-16s20 5.5 20 16z" fill="#36424A"/>
-<path d="M27 48.5 32 54l5-5.5" fill="none" stroke="#F5F5F5" stroke-width="1.6" stroke-linejoin="round"/>
-<ellipse cx="32" cy="32" rx="10.5" ry="12.5" fill="#8B5734"/>
-<path d="M21.3 29c1.5-8.5 19.9-8.5 21.4 0-4.6-3.6-16.8-3.6-21.4 0z" fill="#2A1B12"/>
-<circle cx="21.6" cy="37.5" r="2.1" fill="#FFE08A"/><circle cx="42.4" cy="37.5" r="2.1" fill="#FFE08A"/>
-<path d="M25.6 29.4q2.4-1.2 4.6 0M33.8 29.4q2.4-1.2 4.6 0" stroke="#2A1B12" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-<circle cx="27.9" cy="32.3" r="1.25" fill="#1B110B"/><circle cx="36.1" cy="32.3" r="1.25" fill="#1B110B"/>
-<path d="M28.6 38.2q3.4 2.6 6.8 0" stroke="#4A2516" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-</svg>`;
-const AV_URL = 'data:image/svg+xml,' + encodeURIComponent(AVATAR_SVG);
+/* Sidi's profile picture */
+const AV_URL = 'assets/sidi-avatar.png';
 const avHTML = `<span class="av"><img src="${AV_URL}" alt=""></span>`;
 const avEl = () => h('span', { class: 'av', 'aria-hidden': 'true' }, h('img', { src: AV_URL, alt: '' }));
 
@@ -1011,7 +1062,24 @@ const statusBar = dev => dev === 'iphone'
   ? `<div class="statusbar"><span>${clock(dev)}</span><span class="island"></span><span class="icons">${SIG}${WIFI}${BATT}</span></div>`
   : `<div class="statusbar"><span>${clock(dev)}</span><span class="punch"></span><span class="icons">${WIFI}${SIG}${BATT_A}</span></div>`;
 const phoneShell = (dev, ch, inner) => `<div class="device phone dev-${dev} ch-${ch}"><div class="screen">${statusBar(dev)}${inner}<span class="home-ind"></span></div></div>`;
-const composer = ch => `<form class="composer" autocomplete="off"><input id="in-${ch}" aria-label="Message" placeholder="${CHANNELS[ch].hint}"><button class="send" type="submit" aria-label="Send">${ch === 'ig' ? 'Send' : sendIcon}</button></form>`;
+const ICO = {
+  clip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 11.5 12 20a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.7 17.7a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>'
+};
+const composer = ch => `<form class="composer" autocomplete="off">
+  <div class="field">
+    <button class="c-ico attach" type="button" aria-label="Attach a photo or file" title="Attach a photo or file">${ICO.clip}</button>
+    <input class="file-in" type="file" accept="image/*,.pdf,.doc,.docx" hidden>
+    <input id="in-${ch}" type="text" aria-label="Message" placeholder="${CHANNELS[ch].hint}">
+    <div class="rec" aria-live="polite"><button class="c-ico rec-cancel" type="button" aria-label="Discard voice note">${ICO.trash}</button><span class="rec-dot"></span><span class="rec-time">0:00</span><span class="rec-bars">${'<i></i>'.repeat(24)}</span></div>
+    <button class="c-ico mic" type="button" aria-label="Record a voice note" title="Record a voice note">${ICO.mic}</button>
+  </div>
+  <button class="send" type="submit" aria-label="Send">${ch === 'ig' ? 'Send' : sendIcon}</button>
+</form>`;
 
 /* Conversation pane for the messaging channels (same on phone and desktop) */
 const HEADS = {
@@ -1124,6 +1192,7 @@ class Session {
     this.flowId = 0;
     this.autoplay = [];
     this.started = false;
+    this.voiceCount = 0;
     this.root = null;
     this.device = null;
     this.panelOpen = true;
@@ -1156,16 +1225,23 @@ class Session {
     log.addEventListener('keydown', reveal);
     this.dock = $('.qr-dock', root);
     this.screen = $('.screen', root);
-    this.input = $('.composer input', root);
+    this.input = $('.composer input[type="text"]', root);
     $('#stage').append(root);
 
     $('.composer', root).addEventListener('submit', e => {
       e.preventDefault();
+      if (this.recorder) return this.stopRecording(true);
       const v = this.input.value;
       this.input.value = '';
       this.autoplay = [];
       this.onUserText(v);
     });
+    const fileIn = $('.file-in', root);
+    $('.attach', root).onclick = () => fileIn.click();
+    fileIn.onchange = () => { if (fileIn.files[0]) this.sendFile(fileIn.files[0]); fileIn.value = ''; };
+    $('.mic', root).onclick = () => (this.recorder ? this.stopRecording(true) : this.startRecording());
+    $('.rec-cancel', root).onclick = () => this.stopRecording(false);
+    $$('.rec-bars i', root).forEach((b, i) => { b.style.animationDelay = `${(i % 6) * 0.12}s`; });
     if (this.ch === 'web') {
       $('.w-min', root).onclick = () => this.setPanel(false);
       $('.launcher', root).onclick = () => { this.setPanel(true); this.input.focus(); };
@@ -1286,6 +1362,11 @@ class Session {
     if (p && p.mask && /^\d{6}$/.test(text.replace(/\s/g, ''))) shown = '••••••';
     else if (p && p.maskAs) { const r = p.validate(text); if (r.ok) shown = p.maskAs(r.value); }
     this.userBubble(shown);
+    this.process(text, picked);
+  }
+
+  process(text, picked) {
+    const p = this.pending;
     this.clearReplies();
     if (this.state.mode === 'agent') return this.go('agentTurn', text);
     this.setHint();
@@ -1302,6 +1383,101 @@ class Session {
       invalid = r.msg;
     }
     return this.understand(text, p, invalid);
+  }
+
+  /* ---------- Voice notes ---------- */
+  async startRecording() {
+    const field = $('.field', this.root);
+    this.recorder = { chunks: [], start: Date.now(), transcript: '', live: false };
+    const rec = this.recorder;
+    field.classList.add('recording');
+    $('.mic', this.root).innerHTML = ICO.stop;
+    $('.mic', this.root).setAttribute('aria-label', 'Stop and send voice note');
+    const time = $('.rec-time', this.root);
+    rec.tick = setInterval(() => {
+      const t = Math.floor((Date.now() - rec.start) / 1000);
+      time.textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+      if (t >= 60) this.stopRecording(true);
+    }, 250);
+    // Record real audio and transcribe it when the browser allows; otherwise the demo falls back to a sample
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (this.recorder !== rec) return stream.getTracks().forEach(t => t.stop());
+      rec.stream = stream;
+      rec.media = new MediaRecorder(stream);
+      rec.media.ondataavailable = e => rec.chunks.push(e.data);
+      rec.media.start();
+      rec.live = true;
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SR) {
+        rec.sr = new SR();
+        rec.sr.lang = 'en-GH';
+        rec.sr.continuous = true;
+        rec.sr.interimResults = true;
+        rec.sr.onresult = e => { rec.transcript = [...e.results].map(r => r[0].transcript).join(' ').trim(); };
+        rec.sr.start();
+      }
+    } catch (e) { rec.live = false; }
+  }
+
+  stopRecording(send) {
+    const rec = this.recorder;
+    if (!rec) return;
+    this.recorder = null;
+    clearInterval(rec.tick);
+    $('.field', this.root).classList.remove('recording');
+    $('.mic', this.root).innerHTML = ICO.mic;
+    $('.mic', this.root).setAttribute('aria-label', 'Record a voice note');
+    $('.rec-time', this.root).textContent = '0:00';
+    const secs = Math.max(1, Math.round((Date.now() - rec.start) / 1000));
+    const finish = () => {
+      if (rec.stream) rec.stream.getTracks().forEach(t => t.stop());
+      if (!send) return;
+      const url = rec.chunks.length ? URL.createObjectURL(new Blob(rec.chunks, { type: rec.chunks[0].type })) : null;
+      // Give speech recognition a moment to deliver its last words
+      setTimeout(() => this.sendVoice(url, secs, rec.transcript, rec.live), rec.sr ? 600 : 0);
+    };
+    if (rec.sr) try { rec.sr.stop(); } catch (e) {}
+    if (rec.media && rec.media.state !== 'inactive') { rec.media.onstop = finish; rec.media.stop(); } else finish();
+  }
+
+  async sendVoice(url, secs, transcript, live) {
+    this.autoplay = [];
+    this.maskBalances();
+    let heard = transcript;
+    let sample = false;
+    if (!heard && !live) { heard = VOICE_SAMPLES[this.voiceCount++ % VOICE_SAMPLES.length]; sample = true; }
+    this.row('user', h('div', { class: 'bubble' }, voiceNote(url, secs, heard), this.meta(true)));
+    if (sample) this.sys('Microphone unavailable here, so this demo used a sample voice note.');
+    const p = this.pending;
+    this.clearReplies();
+    try {
+      if (!heard) return this.retry("Sorry, I couldn't make out that voice note. Could you try again, or type your message?", p || { type: 'choice', options: [] });
+      await this.say(`I heard: “${heard}”`);
+      this.process(heard, null);
+    } catch (e) { if (e !== STALE) console.error(e); }
+  }
+
+  /* ---------- Attachments ---------- */
+  async sendFile(file) {
+    this.autoplay = [];
+    this.maskBalances();
+    const isImg = file.type.startsWith('image/');
+    const size = file.size > 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(file.size / 1024))} KB`;
+    const ext = (file.name.split('.').pop() || 'FILE').slice(0, 4).toUpperCase();
+    const body = isImg
+      ? h('div', { class: 'att' }, h('img', { src: URL.createObjectURL(file), alt: file.name }))
+      : h('div', { class: 'att-file' }, h('span', { class: 'ic' }, ext), h('span', {}, file.name, h('small', {}, size)));
+    this.row('user', h('div', { class: 'bubble' }, body, this.meta(true)));
+    this.state.attachment = file.name;
+    const p = this.pending;
+    this.clearReplies();
+    try {
+      if (p && this.state.taskId && this.state.taskId.startsWith('complaint'))
+        return this.retry(this.resumeText(p, `Thanks, I've added **${file.name}** to your complaint.`), p);
+      if (p && this.state.task) return this.retry(this.resumeText(p, `Got it, thanks for sending **${file.name}**.`), p);
+      this.go('fileReceived', file.name);
+    } catch (e) { if (e !== STALE) console.error(e); }
   }
 
   // Work out what an unexpected message means, without losing the customer's place
@@ -1461,6 +1637,21 @@ class Session {
    Conversation flows
    ========================================================= */
 const F = {};
+
+// Customers can hold several cards, so card actions start by asking which one
+const pickCard = async (s, prompt, allowAll = false) => {
+  if (!s.state.verified) {
+    await s.choose(prompt, [{ id: 'debit', label: 'Debit card' }, { id: 'prepaid', label: 'Prepaid card' }, { id: 'unsure', label: "I'm not sure" }]);
+    return [{ name: s.last.label, no: '' }];
+  }
+  const opts = DEMO.cards.map(c => ({ id: c.id, label: `${c.name} ${c.no}`, desc: `Linked to ${c.linked}` }));
+  if (allowAll) opts.push({ id: 'all', label: 'All my cards', desc: `${DEMO.cards.length} cards` });
+  const v = await s.choose(`${prompt} You have ${DEMO.cards.length} cards with us.`, opts);
+  return v === 'all' ? DEMO.cards : DEMO.cards.filter(c => c.id === v);
+};
+const cardName = cards => cards.map(c => `${c.name}${c.no ? ' ' + c.no : ''}`).join(', ');
+const blockedCard = cards => kvCard(cards.length > 1 ? 'Cards blocked' : 'Card blocked',
+  [...cards.map(c => [`${c.name}${c.no ? ' ' + c.no : ''}`, 'Blocked']), ['Time', stamp()]], 'No one can use them now. Transfers and the app still work.');
 
 // Marks a task in progress, so a change of topic is confirmed instead of losing the customer's place
 const setTask = (s, id, label) => { s.state.taskId = id; s.state.task = label; };
@@ -1694,6 +1885,8 @@ F.complaint = async (s, preset, detail) => {
   } else if (cat === 'card') {
     const t = detail || await s.choose("What's happening with your card?", CARD_TYPES);
     c.Issue = CARD_TYPES.find(x => x.id === t).label;
+    const cards = await pickCard(s, t === 'lost' ? 'Which card is missing?' : 'Which card is it?', t === 'lost');
+    c.Card = cardName(cards);
     if (t === 'lost') {
       // Protect the money first, then carry on with the complaint
       const b = await s.choose("I'm sorry to hear that. First, let's keep your money safe. Shall I block the card now?",
@@ -1701,10 +1894,10 @@ F.complaint = async (s, preset, detail) => {
       if (b === 'block' && !s.cfg.sensitive) {
         await s.card(kvCard('Block your card now', [['Fraud desk', '0302 000 000'], ['Hours', 'Open 24/7']], 'For your safety, cards can only be blocked by phone, in the app or on WhatsApp.'));
       } else if (b === 'block') {
-        await s.card(kvCard('Card blocked', [['Card', 'Debit ••5512'], ['Status', 'Blocked'], ['Time', stamp()]], 'No one can use it now. Transfers and the app still work.'));
-        c.Card = 'Blocked';
+        await s.card(blockedCard(cards));
+        c.Status = cards.length > 1 ? 'Cards blocked' : 'Card blocked';
       }
-      const r = await s.choose('Would you like a replacement card?', [{ id: 'yes', label: 'Yes, please' }, { id: 'no', label: 'Not now' }]);
+      const r = await s.choose(cards.length > 1 ? 'Would you like replacement cards?' : 'Would you like a replacement card?', [{ id: 'yes', label: 'Yes, please' }, { id: 'no', label: 'Not now' }]);
       if (r === 'yes') c.Replacement = 'Requested';
       await s.say("Got it. A few quick details and I'll log this for you.");
     }
@@ -1728,11 +1921,13 @@ F.complaint = async (s, preset, detail) => {
     c.Phone = s.ch === 'wa' ? 'This WhatsApp number' : maskPhone(await askPhone(s, 'And a phone number we can reach you on?', '0551234890'));
   }
 
+  if (s.state.attachment) c.Attachment = s.state.attachment;
   await s.card(kvCard('Check your complaint', Object.entries(c)));
   const v = await s.choose(null, [{ id: 'submit', label: 'Submit complaint' }, { id: 'restart', label: 'Start over' }, { id: 'cancel', label: 'Cancel' }]);
   if (v === 'restart') return s.go('complaint');
   if (v === 'cancel') return s.go('menu', 'Okay, nothing was sent. Anything else?');
   setTask(s, null, null);
+  s.state.attachment = null;
   s.state.ticket = { ref: makeRef('CMP'), issue: c.Issue, priority: 'Standard', at: stamp() };
   await s.card(ticketCard(s.state.ticket));
   await s.say(`Keep this reference. Most issues like this are resolved within ${cat === 'failed' ? '5' : '10'} working days.`);
@@ -1766,9 +1961,10 @@ F.fraud = async (s, mode) => {
     if (v === 'call') return F.callDesk(s);
     if (v === 'block') {
       if (!await F.verify(s)) return;
-      await s.card(kvCard('Card blocked', [['Card', 'Debit ••5512'], ['Status', 'Blocked'], ['Time', stamp()]], 'Transfers and the app still work.'));
-      const n = await s.choose('Want a replacement card?', [{ id: 'yes', label: 'Yes, replace it' }, { id: 'no', label: 'Not now' }]);
-      if (n === 'yes') await s.say('Done. Your new card will be ready at Ring Road Central in 3 working days.');
+      const cards = await pickCard(s, 'Which card should I block?', true);
+      await s.card(blockedCard(cards));
+      const n = await s.choose(cards.length > 1 ? 'Want replacements?' : 'Want a replacement card?', [{ id: 'yes', label: 'Yes, replace it' }, { id: 'no', label: 'Not now' }]);
+      if (n === 'yes') await s.say(`Done. ${cards.length > 1 ? 'Your new cards' : 'Your new card'} will be ready at Ring Road Central in 3 working days.`);
       return F.next(s, [{ id: 'fraudReport', label: 'Report what happened' }]);
     }
   } else {
@@ -1938,6 +2134,12 @@ F.sendMoney = async s => {
   return F.next(s, [{ id: 'complaint:failed', label: "A transfer didn't arrive" }]);
 };
 
+F.fileReceived = async (s, name) => {
+  const v = await s.choose(`Thanks for sending **${name}**. What would you like me to do with it?`,
+    [{ id: 'complaint', label: 'Add it to a complaint' }, { id: 'agent', label: 'Send it to a person' }, { id: 'askOther', label: 'Something else' }]);
+  return s.go(v);
+};
+
 F.accountBlocked = async s => {
   s.state.lastTopic = 'a blocked account';
   await s.say("I'm sorry, that's frustrating. Accounts are usually restricted for a security check, missing ID details, or a long time without use. Let's get it sorted.");
@@ -1947,6 +2149,7 @@ F.accountBlocked = async s => {
 
 F.cardPin = async s => {
   s.state.lastTopic = 'your card PIN';
+  if (s.state.verified) await pickCard(s, 'Sure. Which card is it for?');
   await s.say('No problem. You can set a new card PIN in the GCB app under **Cards › Reset PIN**, or at any branch with your Ghana Card.');
   return F.next(s, [{ id: 'complaint:card', label: 'Report a card problem' }, { id: 'branch', label: 'Find a branch' }]);
 };
