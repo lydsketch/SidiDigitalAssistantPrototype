@@ -126,6 +126,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .menu-card b { display: block; font-size: 15px; font-weight: 700; line-height: 1.25; }
 .menu-card small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Link out to a website from a card */
+.link-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; background: var(--slate); color: #FFFFFF; border-radius: 999px; padding: 9px 14px; font-weight: 600; font-size: 13px; text-decoration: none; }
+.link-btn:hover { background: #2A343B; }
+.link-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.c-url { font: 500 12px/1.3 var(--f-mono); color: var(--sub-fg); overflow-wrap: anywhere; }
+a.solid, a.ghost { text-decoration: none; }
+
 /* Quick replies (website, app) */
 .qr-row { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px 36px; animation: rise .22s ease-out; }
 .qr-row button, .qr-pills button {
@@ -635,7 +642,7 @@ const FAQ = {
   limits: { topic: 'transfer limits', a: 'Transfer limits depend on your account and channel. You can view and change yours in the app under **Settings › Limits**.', next: [{ id: 'agent', label: 'Talk to a person' }] },
   fees: { topic: 'fees and charges', a: 'All our fees are listed in the tariff guide, at any branch or on our website. If a charge looks wrong, I can log it for you.', next: [{ id: 'complaint:charges', label: 'Query a charge' }] },
   swift: { topic: 'receiving money from abroad', a: "For money coming from abroad, the sender needs GCB's SWIFT code, your full name and your account number. A person from our team can confirm the exact details.", next: [{ id: 'agent', label: 'Talk to a person' }] },
-  momo: { topic: 'mobile money', a: 'You can move money between your GCB account and any mobile money wallet in the app or with USSD.', next: [{ id: 'sendMoney', label: 'How to send money' }] },
+  momo: { topic: 'mobile money', a: 'You can move money between your GCB account and any mobile money wallet in the app or by dialling *422#.', next: [{ id: 'sendMoney', label: 'How to send money' }] },
   close: { topic: 'closing an account', a: "Sorry to hear that. Accounts are closed at a branch with your Ghana Card. If something's gone wrong, I'd love the chance to fix it first.", next: [{ id: 'agent', label: 'Talk to a person' }, { id: 'branch', label: 'Find a branch' }] }
 };
 
@@ -712,6 +719,87 @@ const greeting = () => { const hr = new Date().getHours(); return hr < 12 ? 'Goo
 const makeRef = p => { const d = new Date(); return `${p}-${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(Math.floor(10000 + Math.random() * 90000))}`; };
 const parseAmount = v => { const n = parseFloat(String(v).replace(/[^0-9.]/g, '')); return n > 0 ? { ok: true, value: n } : { ok: false, msg: 'Please enter an amount, like 500.' }; };
 const required = msg => v => v.trim().length > 1 ? { ok: true, value: v.trim() } : { ok: false, msg };
+const PORTAL_URL = 'https://accountopeningportal.gcbltd.com/';
+const USSD_CODE = '*422#';
+
+// What Sidi can do, as [option label, phrase used when Sidi redirects]
+const CAPS = {
+  balance: ['Check my balance', 'checking your balance'],
+  statement: ['Get a statement', 'getting a statement'],
+  open: ['Open an account', 'opening an account'],
+  products: ['Explore products and loans', 'our products and loans'],
+  rates: ['Check rates', 'our rates'],
+  'complaint:failed': ['Report a failed transaction', 'a failed transaction'],
+  'complaint:card': ['Card problem', 'a card problem'],
+  'fraud:lost': ['Block a lost or stolen card', 'blocking your card'],
+  sendMoney: ['How to send money', 'sending money'],
+  getapp: ['Get the mobile app', 'the GCB mobile app'],
+  login: ['Login or PIN problem', 'logging in'],
+  ibank: ['Internet banking', 'internet banking'],
+  ussd: ['Banking with USSD', 'USSD banking'],
+  complaint: ['Lodge a complaint', 'lodging a complaint'],
+  track: ['Track a complaint', 'tracking your complaint'],
+  fraud: ['Report fraud or a scam', 'reporting fraud'],
+  branch: ['Find a branch or ATM', 'finding a branch or ATM'],
+  'faq:hours': ['Branch opening hours', 'our opening hours'],
+  'faq:fees': ['Fees and charges', 'fees and charges'],
+  'faq:momo': ['Mobile money', 'mobile money'],
+  agent: ['Talk to a person', 'talking to a person']
+};
+
+// Loose keywords for messages that don't match a clear request: [words, strong matches, possible matches]
+const KEYWORDS = [
+  [['balance', 'bal'], ['balance'], []],
+  [['money', 'funds', 'amount'], [], ['balance', 'sendMoney', 'complaint:failed']],
+  [['cash', 'withdraw', 'withdrawal', 'atm'], [], ['branch', 'complaint:failed', 'balance']],
+  [['account', 'accounts', 'acct'], [], ['balance', 'open', 'statement']],
+  [['statement', 'history', 'transactions', 'transaction', 'records', 'receipt'], ['statement'], ['complaint:failed']],
+  [['register', 'create', 'new', 'join', 'onboard'], [], ['open']],
+  [['loan', 'loans', 'borrow', 'credit', 'mortgage', 'overdraft'], ['products'], []],
+  [['save', 'saving', 'savings', 'invest', 'investment', 'deposit'], [], ['products', 'rates']],
+  [['rate', 'rates', 'dollar', 'dollars', 'forex', 'exchange', 'interest', 'cedis'], ['rates'], []],
+  [['send', 'transfer', 'pay', 'payment', 'bill', 'bills', 'remit'], [], ['sendMoney', 'complaint:failed']],
+  [['failed', 'fail', 'reversal', 'reverse', 'refund', 'debited', 'deducted', 'pending', 'missing'], ['complaint:failed'], ['track']],
+  [['card', 'visa', 'debit'], [], ['complaint:card', 'fraud:lost', 'products']],
+  [['lost', 'stolen', 'block', 'freeze'], ['fraud:lost'], []],
+  [['app', 'mobile', 'download', 'install'], [], ['getapp', 'login']],
+  [['login', 'password', 'pin', 'locked', 'access', 'otp'], ['login'], ['fraud']],
+  [['online', 'internet', 'web', 'website'], [], ['ibank', 'getapp']],
+  [['ussd', 'dial', 'shortcode'], ['ussd'], []],
+  [['complain', 'complaint', 'issue', 'problem', 'rude', 'wrong', 'error', 'slow', 'delay', 'poor', 'bad'], [], ['complaint', 'agent']],
+  [['track', 'status', 'follow', 'ticket', 'reference'], ['track'], []],
+  [['fraud', 'scam', 'hack', 'hacked', 'suspicious', 'strange'], ['fraud'], []],
+  [['branch', 'office', 'visit', 'location', 'near', 'address', 'where'], [], ['branch', 'faq:hours']],
+  [['hours', 'time', 'saturday', 'sunday', 'weekend', 'holiday'], [], ['faq:hours']],
+  [['fee', 'fees', 'charge', 'charges', 'cost', 'price', 'tariff'], ['faq:fees'], []],
+  [['momo', 'mtn', 'telecel', 'airteltigo', 'wallet'], ['faq:momo'], ['sendMoney']],
+  [['person', 'human', 'agent', 'staff', 'manager', 'someone', 'call'], ['agent'], []]
+];
+
+const editDistance = (a, b) => {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+};
+// Allow small typos: 1 edit for words of 4+ letters, 2 for 8+
+const wordMatches = (w, k) => w === k || (w.length >= 4 && k.length >= 4 && editDistance(w, k) <= (k.length >= 8 ? 2 : 1));
+
+// Read a free-text message for anything Sidi can help with
+const suggestFor = text => {
+  const words = norm(text).split(' ').filter(Boolean);
+  const score = {};
+  for (const [keys, strong, weak] of KEYWORDS) {
+    if (!words.some(w => keys.some(k => wordMatches(w, k)))) continue;
+    strong.forEach(id => { score[id] = (score[id] || 0) + 2; });
+    weak.forEach(id => { score[id] = (score[id] || 0) + 1; });
+  }
+  const ranked = Object.entries(score).sort((a, b) => b[1] - a[1]).map(([id]) => id);
+  const strongOnes = ranked.filter(id => score[id] >= 2);
+  return { redirect: strongOnes.length === 1 ? strongOnes[0] : null, options: ranked.slice(0, 3) };
+};
+
 const detectIntent = text => (INTENTS.find(([, re]) => re.test(text)) || [])[0] || null;
 const matchOption = (opts, text) => {
   const t = norm(text);
@@ -729,6 +817,13 @@ const xBadge = '<svg class="badge" viewBox="0 0 24 24" aria-label="Verified orga
 /* =========================================================
    Cards
    ========================================================= */
+const linkCard = (title, url, cta, foot) => h('div', { class: 'c-pad' },
+  h('div', { class: 'c-title' }, title),
+  h('div', { class: 'c-url' }, url.replace(/^https?:\/\//, '').replace(/\/$/, '')),
+  h('a', { class: 'link-btn', href: url, target: '_blank', rel: 'noopener noreferrer' }, cta,
+    h('span', { html: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>' })),
+  foot ? h('div', { class: 'c-foot' }, foot) : null);
+
 const kvCard = (title, rows, foot) => h('div', { class: 'c-pad' },
   h('div', { class: 'c-title' }, title),
   h('dl', { class: 'kv' }, rows.flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
@@ -880,7 +975,7 @@ const siteHTML = () => `
     <header class="nav"><div class="wrap">
       <span class="logo"><span class="roundel">GCB</span>GCB Bank</span>
       <nav><span>Accounts</span><span>Cards</span><span>Loans</span><span>Investments</span><span>Digital banking</span></nav>
-      <span class="nav-cta"><span class="ghost">Internet banking</span><span class="solid">Open an account</span></span>
+      <span class="nav-cta"><span class="ghost">Internet banking</span><a class="solid" href="${PORTAL_URL}" target="_blank" rel="noopener noreferrer">Open an account</a></span>
       <span class="burger" aria-hidden="true">☰</span>
     </div></header>
     <section class="hero"><div class="wrap">
@@ -888,7 +983,7 @@ const siteHTML = () => `
         <p class="eyebrow">Personal banking</p>
         <h1>Banking that keeps up with you.</h1>
         <p>Open an account with just your Ghana Card, pay bills and send money from anywhere in Ghana.</p>
-        <div class="cta"><span class="solid">Open an account</span><span class="ghost">Explore products</span></div>
+        <div class="cta"><a class="solid" href="${PORTAL_URL}" target="_blank" rel="noopener noreferrer">Open an account</a><span class="ghost">Explore products</span></div>
       </div>
       <div class="hero-art" aria-hidden="true"><div class="art-card"><small>Everyday Savings</small><b>GHS 4,820.00</b><span>+ GHS 58.40 interest this month</span></div></div>
     </div></section>
@@ -1114,8 +1209,12 @@ class Session {
     } else if (p && p.type === 'text') {
       const r = p.validate ? p.validate(text) : { ok: true, value: text };
       if (r.ok) { this.pending = null; this.state.fails = 0; return p.res(r.value); }
-      const intent = !picked && detectIntent(text);
-      if (intent) return this.go(intent);
+      if (!picked) {
+        const intent = detectIntent(text);
+        if (intent) return this.go(intent);
+        const hint = suggestFor(text);
+        if (hint.options.length) { this.state.unanswered = text; return this.go('suggest', hint); }
+      }
       return this.retry(r.msg, p);
     }
     const small = SMALLTALK.find(([re]) => re.test(text));
@@ -1126,10 +1225,12 @@ class Session {
     }
     const intent = detectIntent(text);
     if (intent) { this.state.fails = 0; return this.go(intent); }
+    const hint = suggestFor(text);
+    if (hint.options.length) { this.state.fails = 0; this.state.unanswered = text; return this.go('suggest', hint); }
     this.state.fails++;
     this.state.unanswered = text;
     if (this.state.fails >= 2) return this.go('stuck');
-    if (p) return this.retry("Sorry, I didn't quite get that. You can tap an option, or tell me in your own words.", p);
+    if (p) return this.retry("Hmm, I couldn't find anything on that. Could you put it another way, or choose one of the options below?", p);
     return this.go('unknown');
   }
 
@@ -1261,6 +1362,19 @@ F.hello = s => F.menu(s, 'Hi there! Good to hear from you. **What can I help you
 F.unknown = s => F.menu(s, "Hmm, I'm not sure I understood that, and I'd rather not guess. Could you say it another way, or pick a topic below?");
 
 F.offtopic = s => F.menu(s, "I wish I could help with that, but banking is my speciality. Here's what I can do for you:");
+
+F.suggest = async (s, hint) => {
+  if (hint.redirect) {
+    s.state.unanswered = null;
+    await s.say(`Sounds like you need help with ${CAPS[hint.redirect][1]}. Let's sort that out.`);
+    return s.go(hint.redirect);
+  }
+  const opts = hint.options.map(id => ({ id, label: CAPS[id][0] }));
+  if (!hint.options.includes('agent')) opts.push({ id: 'agent', label: 'Talk to a person' });
+  const v = await s.choose('I think I can help with that. Which of these is closest?', [...opts, { id: 'menu', label: 'Something else' }]);
+  if (v !== 'agent') s.state.unanswered = null;
+  return s.go(v);
+};
 
 F.frustrated = async (s, msg) => {
   const v = await s.choose(msg, [{ id: 'agent', label: 'Yes, connect me' }, { id: 'menu', label: "No, let's keep going" }]);
@@ -1525,17 +1639,19 @@ F.convert = async s => {
 /* ---------- Account opening ---------- */
 F.open = async (s, preType) => {
   s.state.lastTopic = 'opening an account';
-  if (!s.cfg.sensitive) return F.secureHandoff(s, 'open', 'open accounts');
   if (s.state.verified) {
     await s.choose('Since I already know you, a new account takes one step. Which one?', ACCOUNT_TYPES);
     await s.card(kvCard('Account opened', [['Type', s.last.label], ['Number', '1041 2271 0093'], ['Status', 'Active']], 'It now shows on your home screen.'));
     return F.next(s);
   }
-  if (s.state.isCustomer === null) s.state.isCustomer = false;
-  let v = await s.choose("You can open an account here in about 5 minutes. You'll need your Ghana Card and a phone that gets SMS.",
-    [{ id: 'go', label: "Let's start" }, { id: 'need', label: 'What else do I need?' }, { id: 'later', label: 'Not now' }]);
-  if (v === 'need') v = await s.choose("Nothing else. No forms and no branch visit. I'll also take a quick selfie to match your Ghana Card.", [{ id: 'go', label: "Let's start" }, { id: 'later', label: 'Not now' }]);
-  if (v === 'later') return s.go('menu', 'No problem. Anything else?');
+  // In-chat opening needs a selfie and ID, so public social DMs only get the portal
+  const ways = [{ id: 'portal', label: 'Open online on our portal' }];
+  if (s.cfg.sensitive) ways.push({ id: 'go', label: 'Open it here in chat' });
+  let v = await s.choose('Great choice! You can open a GCB account in a few minutes with just your Ghana Card and phone. How would you like to do it?',
+    [...ways, { id: 'need', label: 'What do I need?' }, { id: 'later', label: 'Not now' }]);
+  if (v === 'need') v = await s.choose("Just your Ghana Card and a phone that gets SMS. No paper forms and no branch visit. We'll also ask for a quick selfie to match your Ghana Card.", [...ways, { id: 'later', label: 'Not now' }]);
+  if (v === 'later') return s.go('menu', "No problem. Whenever you're ready, I'm here. Anything else?");
+  if (v === 'portal') return F.portal(s);
 
   let type = preType;
   if (!type) { await s.choose('Which account would you like?', ACCOUNT_TYPES); type = s.last.label; }
@@ -1581,6 +1697,12 @@ F.open = async (s, preType) => {
   return F.next(s, [{ id: 'getapp', label: 'Get the GCB app' }]);
 };
 
+F.portal = async s => {
+  await s.card(linkCard('GCB Account Opening Portal', PORTAL_URL, 'Open my account online', 'Opens in a new tab · secure GCB site'));
+  await s.say("Have your Ghana Card and phone ready. If you get stuck at any step, come back here and I'll help.");
+  return F.next(s, [{ id: 'agent', label: 'I need help with it' }]);
+};
+
 F.getapp = async s => {
   if (s.ch === 'app') { await s.say("You're already in it."); return F.next(s); }
   await s.say('Search "GCB" on the App Store or Google Play, then sign in with your account number and phone.');
@@ -1604,7 +1726,7 @@ F.statement = async s => {
 
 F.sendMoney = async s => {
   s.state.lastTopic = 'sending money';
-  await s.say('You can send money to any bank account or mobile money wallet from the GCB app, internet banking or USSD. In the app, tap **Transfer**, pick who to pay, then confirm with your PIN.');
+  await s.say('You can send money to any bank account or mobile money wallet from the GCB app, internet banking or by dialling *422#. In the app, tap **Transfer**, pick who to pay, then confirm with your PIN.');
   return F.next(s, [{ id: 'complaint:failed', label: "A transfer didn't arrive" }]);
 };
 
@@ -1623,7 +1745,7 @@ F.ibank = async s => {
 
 F.ussd = async s => {
   s.state.lastTopic = 'USSD banking';
-  await s.say("No data? No problem. Dial GCB's USSD short code from the phone number linked to your account to check your balance, buy airtime and send money.");
+  await s.say(`No data? No problem. Dial **${USSD_CODE}** from the phone number linked to your account to check your balance, buy airtime and send money.`);
   return F.next(s, [{ id: 'getapp', label: 'Get the app instead' }]);
 };
 
