@@ -654,6 +654,10 @@ const SMALLTALK = [
   [/\b(useless|stupid|rubbish|nonsense|annoying|frustrat\w*|angry|fed up|waste of time)\b/i, "I'm sorry this has been frustrating. I don't want to waste your time. Shall I bring in a person?", true]
 ];
 
+// Ways people say "stop" or "none of these"
+const CANCEL = /^(cancel|stop|quit|exit|go back|back|never ?mind|start over|restart|menu|main menu)\b/i;
+const NOT_LISTED = /\b(none of (these|them|those|the above)|not (in|on) (the|this|your) (list|options|menu)|not (listed|there|here)|something else|another (thing|option)|neither)\b/i;
+
 const INTENTS = [
   ['fraud', /\b(fraud|scam|scammer|stolen|hacked|lost (my )?card|block (my )?card|unauthori[sz]ed)\b/i],
   ['complaint:card', /\bcard\b.{0,25}(swallow|captur|kept|declin|not work|stuck|expired|blocked)|atm (took|kept|swallowed)/i],
@@ -782,21 +786,27 @@ const editDistance = (a, b) => {
     d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
   return d[a.length][b.length];
 };
-// Allow small typos: 1 edit for words of 4+ letters, 2 for 8+
-const wordMatches = (w, k) => w === k || (w.length >= 4 && k.length >= 4 && editDistance(w, k) <= (k.length >= 8 ? 2 : 1));
+// Allow small typos: 1 edit for words of 5+ letters, 2 for 8+ (short words like "list" and "lost" stay distinct)
+const wordMatches = (w, k) => w === k || (w.length >= 5 && k.length >= 5 && editDistance(w, k) <= (k.length >= 8 ? 2 : 1));
+
+// Actions Sidi always confirms before starting, even when the message seems clear
+const CONFIRM_FIRST = ['fraud', 'fraud:lost', 'complaint', 'complaint:failed', 'complaint:card'];
 
 // Read a free-text message for anything Sidi can help with
 const suggestFor = text => {
   const words = norm(text).split(' ').filter(Boolean);
   const score = {};
   for (const [keys, strong, weak] of KEYWORDS) {
-    if (!words.some(w => keys.some(k => wordMatches(w, k)))) continue;
-    strong.forEach(id => { score[id] = (score[id] || 0) + 2; });
+    const exact = words.some(w => keys.includes(w));
+    if (!exact && !words.some(w => keys.some(k => wordMatches(w, k)))) continue;
+    // A typo counts as a hint, not a certainty
+    strong.forEach(id => { score[id] = (score[id] || 0) + (exact ? 2 : 1); });
     weak.forEach(id => { score[id] = (score[id] || 0) + 1; });
   }
   const ranked = Object.entries(score).sort((a, b) => b[1] - a[1]).map(([id]) => id);
   const strongOnes = ranked.filter(id => score[id] >= 2);
-  return { redirect: strongOnes.length === 1 ? strongOnes[0] : null, options: ranked.slice(0, 3) };
+  const redirect = strongOnes.length === 1 && !CONFIRM_FIRST.includes(strongOnes[0]) ? strongOnes[0] : null;
+  return { redirect, options: ranked.slice(0, 3) };
 };
 
 const detectIntent = text => (INTENTS.find(([, re]) => re.test(text)) || [])[0] || null;
@@ -1122,6 +1132,7 @@ class Session {
   go(name, ...args) {
     this.flowId++;
     this.pending = null;
+    this.state.task = this.state.taskId = null;
     this.clearReplies();
     const [n, arg] = name.split(':');
     const flow = F[n] || F.menu;
@@ -1169,16 +1180,18 @@ class Session {
     if (prompt) await this.say(prompt);
     this.check(id);
     const opts = options.map(o => typeof o === 'string' ? { id: o, label: o } : o);
-    return new Promise(res => { this.pending = { type: 'choice', options: opts, res }; this.renderReplies(opts); });
+    return new Promise(res => { this.pending = { type: 'choice', options: opts, prompt, res }; this.renderReplies(opts); });
   }
   async ask(prompt, cfg) {
     const id = this.flowId;
     if (prompt) await this.say(prompt);
     this.check(id);
+    // Every question offers a way back, so no one feels stuck
+    const chips = [...(cfg.chips || []), { label: 'Back to menu', value: '__menu' }];
     return new Promise(res => {
-      this.pending = { type: 'text', ...cfg, res };
+      this.pending = { type: 'text', ...cfg, chips, prompt, res };
       this.setHint(cfg.placeholder);
-      this.renderReplies(cfg.chips || []);
+      this.renderReplies(chips);
     });
   }
 
@@ -1205,36 +1218,94 @@ class Session {
     if (this.state.mode === 'agent') return this.go('agentTurn', text);
     this.setHint();
 
-    if (p && p.type === 'choice') {
-      const o = picked && p.options.includes(picked) ? picked : matchOption(p.options, text);
-      if (o) { this.pending = null; this.state.fails = 0; this.last = o; return p.res(o.id); }
-    } else if (p && p.type === 'text') {
+    const option = p && p.type === 'choice' && (picked && p.options.includes(picked) ? picked : matchOption(p.options, text));
+    if ((picked && picked.value === '__menu') || (!picked && !option && CANCEL.test(text))) return this.go(this.state.task ? 'cancel' : 'menu');
+
+    if (option) { this.pending = null; this.state.fails = 0; this.last = option; return p.res(option.id); }
+    let invalid = null;
+    if (p && p.type === 'text') {
       const r = p.validate ? p.validate(text) : { ok: true, value: text };
       if (r.ok) { this.pending = null; this.state.fails = 0; return p.res(r.value); }
-      if (!picked) {
-        const intent = detectIntent(text);
-        if (intent) return this.go(intent);
-        const hint = suggestFor(text);
-        if (hint.options.length) { this.state.unanswered = text; return this.go('suggest', hint); }
-      }
-      return this.retry(r.msg, p);
+      if (picked) return this.retry(r.msg, p);
+      invalid = r.msg;
+    }
+    return this.understand(text, p, invalid);
+  }
+
+  // Work out what an unexpected message means, without losing the customer's place
+  understand(text, p, invalid) {
+    if (NOT_LISTED.test(text)) {
+      const other = p && p.type === 'choice' && p.options.find(o => /something else/i.test(o.label));
+      if (other) { this.pending = null; this.last = other; return p.res(other.id); }
+      return this.go('askOther');
     }
     const small = SMALLTALK.find(([re]) => re.test(text));
     if (small) {
       this.state.fails = 0;
       if (small[2]) return this.go('frustrated', small[1]);
-      return p ? this.retry(small[1], p) : this.go('menu', small[1]);
+      return p ? this.retry(this.resumeText(p, small[1]), p) : this.go('menu', small[1]);
     }
     const intent = detectIntent(text);
-    if (intent) { this.state.fails = 0; return this.go(intent); }
+    if (intent) { this.state.fails = 0; return this.route(intent, p); }
     const hint = suggestFor(text);
-    if (hint.options.length) { this.state.fails = 0; this.state.unanswered = text; return this.go('suggest', hint); }
+    if (hint.options.length) {
+      this.state.fails = 0;
+      this.state.unanswered = text;
+      if (this.state.task && p) {
+        const opts = hint.options.map(id => ({ id, label: CAPS[id][0] }));
+        return this.detour('I think I can help with that. Which of these is closest?', opts, p);
+      }
+      return this.go('suggest', hint);
+    }
+    // Answered a question with something that isn't the right kind of answer
+    if (invalid) return this.retry(/[a-z]{3,}/i.test(text) && p.help ? `No worries. ${p.help}` : invalid, p);
     this.state.fails++;
     this.state.unanswered = text;
     if (this.state.fails >= 2) return this.go('stuck');
     if (p) return this.retry("Hmm, I couldn't find anything on that. Could you put it another way, or choose one of the options below?", p);
     return this.go('unknown');
   }
+
+  // A recognised request: go straight there, unless it would abandon a task in progress
+  route(intent, p) {
+    const task = this.state.task, taskId = this.state.taskId;
+    if (!task || !p) return this.go(intent);
+    if (['cancel', 'menu', 'hello'].includes(intent)) return this.go('cancel');
+    if (['agent', 'done'].includes(intent)) return this.go(intent);
+    if (intent.split(':')[0] === taskId.split(':')[0]) return this.retry(this.resumeText(p, "We're already on it."), p);
+    if (intent === 'offtopic') return this.retry(this.resumeText(p, "I wish I could help with that, but banking is my speciality."), p);
+    if (intent.startsWith('faq:')) return this.faqDetour(intent.slice(4), p);
+    const cap = CAPS[intent];
+    return this.detour(`Sure, I can help with ${cap ? cap[1] : 'that'}. Would you like to do that now, or finish ${task} first?`,
+      [{ id: intent, label: cap ? cap[0] : 'Yes, switch' }], p);
+  }
+
+  // Offer other options next to "Continue …", keeping the original question ready to resume
+  async detour(prompt, options, p, resumeFirst = false) {
+    try {
+      await this.say(prompt);
+      const resume = { id: '__resume', label: `Continue ${this.state.task}` };
+      const opts = resumeFirst ? [resume, ...options] : [...options, resume];
+      this.pending = {
+        type: 'choice', options: opts, prompt,
+        res: id => {
+          if (id !== '__resume') return this.go(id);
+          this.pending = p;
+          this.retry(this.resumeText(p, "Great, let's carry on."), p);
+        }
+      };
+      this.renderReplies(opts);
+    } catch (e) { if (e !== STALE) console.error(e); }
+  }
+
+  async faqDetour(key, p) {
+    try {
+      await this.say(FAQ[key].a);
+      await this.detour(`Shall we carry on with ${this.state.task}?`, FAQ[key].next, p, true);
+    } catch (e) { if (e !== STALE) console.error(e); }
+  }
+
+  resumeText(p, lead) { return p.prompt ? `${lead}\n\n${p.prompt}` : lead; }
 
   async retry(msg, p) {
     try {
@@ -1317,8 +1388,18 @@ class Session {
    ========================================================= */
 const F = {};
 
+// Marks a task in progress, so a change of topic is confirmed instead of losing the customer's place
+const setTask = (s, id, label) => { s.state.taskId = id; s.state.task = label; };
+
+const validName = v => {
+  const t = v.trim();
+  return /^[a-z][a-z .'-]{1,60}$/i.test(t) && t.split(/\s+/).length <= 5 && !detectIntent(t)
+    ? { ok: true, value: t } : { ok: false, msg: 'Please type just your name, like Kofi Mensah.' };
+};
+
 const askPhone = (s, prompt, demo = '0244123567') => s.ask(prompt, {
   placeholder: 'e.g. 024 412 3567',
+  help: 'I need the phone number on your account so I can text you a security code. Type it like 024 412 3567, or tap an option below.',
   chips: [{ label: `Use demo number ${maskPhone(demo)}`, value: demo }],
   maskAs: maskPhone,
   validate: v => {
@@ -1346,6 +1427,7 @@ F.start = async (s, handoff) => {
 
 F.menu = async (s, prompt) => {
   s.state.fails = 0;
+  setTask(s, null, null);
   const v = await s.choose(prompt || '**What else can I help you with?**', MAIN_MENU);
   return s.go(v);
 };
@@ -1367,6 +1449,8 @@ F.askOther = async s => {
   return s.go(v);
 };
 
+F.cancel = s => F.menu(s, "No problem, I've stopped there. What would you like to do?");
+
 F.hello = s => F.menu(s, 'Hi there! Good to hear from you. **What can I help you with today?**');
 
 F.unknown = s => F.menu(s, "Hmm, I'm not sure I understood that, and I'd rather not guess. Could you say it another way, or pick a topic below?");
@@ -1374,6 +1458,12 @@ F.unknown = s => F.menu(s, "Hmm, I'm not sure I understood that, and I'd rather 
 F.offtopic = s => F.menu(s, "I wish I could help with that, but banking is my speciality. Here's what I can do for you:");
 
 F.suggest = async (s, hint) => {
+  if (hint.options.length === 1 && !hint.redirect) {
+    const id = hint.options[0];
+    const v = await s.choose(`Just to check, is this about ${CAPS[id][1]}?`, [{ id, label: `Yes, ${CAPS[id][0].toLowerCase()}` }, { id: 'askOther', label: 'No, something else' }]);
+    if (v !== 'askOther') s.state.unanswered = null;
+    return s.go(v);
+  }
   if (hint.redirect) {
     s.state.unanswered = null;
     await s.say(`Sounds like you need help with ${CAPS[hint.redirect][1]}. Let's sort that out.`);
@@ -1399,6 +1489,7 @@ F.faq = async (s, key) => {
 };
 
 F.next = async (s, extra = []) => {
+  setTask(s, null, null);
   const v = await s.choose('Anything else?', [...extra, { id: 'menu', label: 'Main menu' }, { id: 'done', label: "No, that's all" }]);
   return s.go(v);
 };
@@ -1450,6 +1541,7 @@ F.otp = async (s, masked) => {
   while (tries > 0) {
     const val = await s.ask(prompt, {
       placeholder: '6-digit code', mask: true,
+      help: "Check your SMS for a 6-digit code from GCB and type it here. If it hasn't arrived, tap Resend code.",
       chips: [{ label: `Use code ${code} (demo)`, value: code }, { label: 'Resend code', value: 'resend' }],
       validate: v => {
         if (/^resend/i.test(v)) return { ok: true, value: 'resend' };
@@ -1488,8 +1580,10 @@ F.balance = async s => {
   s.state.lastTopic = 'your account balance';
   if (!s.cfg.sensitive) return F.secureHandoff(s, 'balance', 'show balances');
   if (s.state.isCustomer === null) s.state.isCustomer = true;
+  setTask(s, 'balance', 'checking your balance');
   if (!s.state.verified && !await F.verify(s)) return;
   const v = await s.choose('Which account?', [{ id: 'cur', label: 'Current ••4821' }, { id: 'sav', label: 'Savings ••0937' }, { id: 'all', label: 'All accounts' }]);
+  setTask(s, null, null);
   await s.card(balanceCard(v === 'all' ? DEMO.accounts : DEMO.accounts.filter(a => a.id === v)));
   if (v !== 'sav') await s.say('Heads up: your DStv debit of **GHS 395.00** is due on 25 Oct. You have enough to cover it.');
   const n = await s.choose(null, [{ id: 'txns', label: 'Recent transactions' }, { id: 'menu', label: 'Main menu' }, { id: 'done', label: "No, that's all" }]);
@@ -1504,6 +1598,7 @@ F.txns = async s => {
 /* ---------- Complaints ---------- */
 F.complaint = async (s, preset) => {
   s.state.lastTopic = 'a complaint';
+  setTask(s, 'complaint', 'logging your complaint');
   const cat = preset || await s.choose("I'm sorry you've had trouble. What's it about?", COMPLAINT_TYPES);
   if (cat === 'fraud') return F.fraud(s);
   const label = COMPLAINT_TYPES.find(t => t.id === cat).label;
@@ -1519,7 +1614,7 @@ F.complaint = async (s, preset) => {
   if (cat === 'failed') {
     await s.choose('What happened?', FAILED_TYPES); c.Issue = s.last.label;
     await s.choose('When was it?', WHEN); c.When = s.last.label;
-    const amt = await s.ask('How much was it?', { placeholder: 'Amount in GHS', chips: [200, 500, 1000].map(a => ({ label: money(a).replace('.00', ''), value: String(a) })), validate: parseAmount });
+    const amt = await s.ask('How much was it?', { placeholder: 'Amount in GHS', help: 'Just type the amount in cedis, like 500.', chips: [200, 500, 1000].map(a => ({ label: money(a).replace('.00', ''), value: String(a) })), validate: parseAmount });
     c.Amount = money(amt);
   } else if (cat === 'card') {
     const t = await s.choose("What's happening with your card?", CARD_TYPES); c.Issue = s.last.label;
@@ -1536,7 +1631,7 @@ F.complaint = async (s, preset) => {
 
   if (s.state.verified) c.Account = 'Current ••4821';
   else {
-    const name = await s.ask('What name should we use?', { placeholder: 'Full name', chips: [{ label: 'Kofi Mensah (demo)', value: 'Kofi Mensah' }], validate: required('Please enter your name.') });
+    const name = await s.ask('What name should we use?', { placeholder: 'Full name', help: 'I just need your name, so our team knows who to contact about this.', chips: [{ label: 'Kofi Mensah (demo)', value: 'Kofi Mensah' }], validate: validName });
     s.state.user = name.split(' ')[0];
     c.Name = name;
     c.Phone = s.ch === 'wa' ? 'This WhatsApp number' : maskPhone(await askPhone(s, 'And a phone number we can reach you on?', '0551234890'));
@@ -1546,6 +1641,7 @@ F.complaint = async (s, preset) => {
   const v = await s.choose(null, [{ id: 'submit', label: 'Submit complaint' }, { id: 'restart', label: 'Start over' }, { id: 'cancel', label: 'Cancel' }]);
   if (v === 'restart') return s.go('complaint');
   if (v === 'cancel') return s.go('menu', 'Okay, nothing was sent. Anything else?');
+  setTask(s, null, null);
   s.state.ticket = { ref: makeRef('CMP'), issue: c.Issue, priority: 'Standard', at: stamp() };
   await s.card(ticketCard(s.state.ticket));
   await s.say(`Keep this reference. Most issues like this are resolved within ${cat === 'failed' ? '5' : '10'} working days.`);
@@ -1555,8 +1651,10 @@ F.complaint = async (s, preset) => {
 F.track = async s => {
   let t = s.state.ticket;
   if (!t) {
+    setTask(s, 'track', 'tracking your complaint');
     const ref = await s.ask("What's your complaint reference?", {
       placeholder: 'e.g. CMP-1021-48213',
+      help: 'Your reference is in the SMS we sent when you logged the complaint. It looks like CMP-1021-48213.',
       chips: [{ label: 'CMP-1021-48213 (demo)', value: 'CMP-1021-48213' }],
       validate: v => /^[a-z]{3}-?\d{4}-?\d{5}$/i.test(v.trim()) ? { ok: true, value: v.trim().toUpperCase() } : { ok: false, msg: 'References look like CMP-1021-48213.' }
     });
@@ -1568,6 +1666,7 @@ F.track = async s => {
 
 F.fraud = async (s, mode) => {
   s.state.lastTopic = mode === 'lost' ? 'a lost card' : 'a possible fraud';
+  setTask(s, mode === 'lost' ? 'fraud:lost' : 'fraud', mode === 'lost' ? 'blocking your card' : 'reporting fraud');
   if (s.cfg.sensitive) {
     const v = await s.choose(mode === 'lost'
       ? "Let's block that card right away so no one can use it."
@@ -1590,11 +1689,13 @@ F.fraud = async (s, mode) => {
 };
 
 F.fraudReport = async s => {
+  setTask(s, 'fraud', 'reporting fraud');
   await s.ask('What happened? Include any names or numbers the scammer used.', {
     placeholder: 'Describe what happened',
     chips: [{ label: 'Someone called asking for my code (demo)', value: 'Someone called pretending to be from GCB and asked for my OTP.' }],
     validate: required('Add a few words so our fraud team can act.')
   });
+  setTask(s, null, null);
   s.state.ticket = { ref: makeRef('FRD'), issue: 'Fraud or scam report', priority: 'High', at: stamp() };
   await s.card(ticketCard(s.state.ticket));
   return F.next(s);
@@ -1639,8 +1740,9 @@ F.rates = async s => {
 };
 
 F.convert = async s => {
+  setTask(s, 'convert', 'converting currency');
   const cur = await s.choose('Which currency do you need?', ['USD', 'GBP', 'EUR']);
-  const amt = await s.ask(`How many ${cur}?`, { placeholder: `Amount in ${cur}`, chips: [100, 500, 1000].map(a => ({ label: `${cur} ${a.toLocaleString()}`, value: String(a) })), validate: parseAmount });
+  const amt = await s.ask(`How many ${cur}?`, { placeholder: `Amount in ${cur}`, help: `Just type the amount in ${cur}, like 500.`, chips: [100, 500, 1000].map(a => ({ label: `${cur} ${a.toLocaleString()}`, value: String(a) })), validate: parseAmount });
   const rate = RATES.fx.find(r => r[0] === cur)[2];
   await s.say(`**${money(amt, cur)}** costs about **${money(amt * rate)}** at our selling rate of ${rate.toFixed(2)}.`);
   return F.next(s, [{ id: 'convert', label: 'Convert another amount' }]);
@@ -1662,12 +1764,14 @@ F.open = async (s, preType) => {
   if (v === 'need') v = await s.choose("Just your Ghana Card and a phone that gets SMS. No paper forms and no branch visit. We'll also ask for a quick selfie to match your Ghana Card.", [...ways, { id: 'later', label: 'Not now' }]);
   if (v === 'later') return s.go('menu', "No problem. Whenever you're ready, I'm here. Anything else?");
   if (v === 'portal') return F.portal(s);
+  setTask(s, 'open', 'opening your account');
 
   let type = preType;
   if (!type) { await s.choose('Which account would you like?', ACCOUNT_TYPES); type = s.last.label; }
 
   await s.ask('Enter your Ghana Card number.', {
     placeholder: 'GHA-000000000-0',
+    help: "Your Ghana Card number is printed on the front of the card. It looks like GHA-123456789-0.",
     chips: [{ label: 'GHA-723456789-1 (demo)', value: 'GHA-723456789-1' }],
     validate: x => { const c = x.toUpperCase().replace(/\s/g, ''); return /^GHA-?\d{9}-?\d$/.test(c) ? { ok: true, value: c } : { ok: false, msg: "That doesn't match the Ghana Card format. It looks like GHA-123456789-0." }; }
   });
@@ -1697,6 +1801,7 @@ F.open = async (s, preType) => {
   }
   s.state.isCustomer = true;
   s.state.verified = true;
+  setTask(s, null, null);
   await s.card(h('div', { class: 'c-pad' },
     h('div', { class: 'c-label' }, 'Account opened'),
     h('div', { class: 'ref' }, '1041 2271 0093'),
@@ -1725,10 +1830,12 @@ F.getapp = async s => {
 F.statement = async s => {
   s.state.lastTopic = 'a statement';
   if (!s.cfg.sensitive) return F.secureHandoff(s, 'statement', 'send statements');
+  setTask(s, 'statement', 'getting your statement');
   if (!s.state.verified && !await F.verify(s)) return;
   await s.choose('Which period would you like?', ['Last month', 'Last 3 months', 'Last 6 months']);
   const period = s.last.label;
   const how = await s.choose('How should I send it?', [{ id: 'email', label: 'Email me a PDF' }, { id: 'here', label: 'Show recent ones here' }]);
+  setTask(s, null, null);
   if (how === 'here') return F.txns(s);
   await s.card(kvCard('Statement sent', [['Account', 'Current ••4821'], ['Period', period], ['Sent to', 'a••••@gmail.com']], 'The PDF is password-protected with your date of birth.'));
   return F.next(s);
