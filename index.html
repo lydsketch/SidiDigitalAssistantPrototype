@@ -592,7 +592,7 @@ const SUBMENUS = {
   payments: ['Happy to help. What do you need?', [
     { id: 'complaint:failed', label: 'Report a failed transaction' },
     { id: 'complaint:card', label: 'Card problem' },
-    { id: 'fraud:lost', label: 'Block a lost or stolen card' },
+    { id: 'complaint:card:lost', label: 'Report a lost or stolen card' },
     { id: 'sendMoney', label: 'How to send money' }
   ]],
   digital: ['Got it. What can I help with?', [
@@ -616,15 +616,18 @@ const COMPLAINT_TYPES = [
   { id: 'charges', label: 'Charges or fees', desc: 'Deductions you did not expect' },
   { id: 'fraud', label: 'Fraud or scam', desc: 'Handled right away' },
   { id: 'service', label: 'Branch or staff service' },
-  { id: 'payin', label: 'Money sent to a GCB account' },
+  { id: 'blocked', label: 'Account blocked or restricted', desc: "Can't transact or log in" },
+  { id: 'payin', label: "Expected money hasn't arrived", desc: 'Salary, transfer in, remittance' },
   { id: 'other', label: 'Something else' }
 ];
-const ACCOUNT_LINKED = ['failed', 'card', 'digital', 'charges'];
+const ACCOUNT_LINKED = ['failed', 'card', 'digital', 'charges', 'blocked'];
 const FAILED_TYPES = [
   { id: 'atm', label: "ATM didn't pay out" },
   { id: 'transfer', label: "Transfer didn't arrive" },
   { id: 'momo', label: 'Mobile money transfer' },
-  { id: 'pos', label: 'POS or online payment' }
+  { id: 'pos', label: 'POS or online payment' },
+  { id: 'wrong', label: 'Sent to the wrong account' },
+  { id: 'double', label: 'Charged twice' }
 ];
 const CARD_TYPES = [
   { id: 'captured', label: 'ATM kept my card' },
@@ -659,7 +662,7 @@ const CANCEL = /^(cancel|stop|quit|exit|go back|back|never ?mind|start over|rest
 const NOT_LISTED = /\b(none of (these|them|those|the above)|not (in|on) (the|this|your) (list|options|menu)|not (listed|there|here)|something else|another (thing|option)|neither)\b/i;
 
 const INTENTS = [
-  ['fraud', /\b(fraud|scam|scammer|stolen|hacked|lost (my )?card|block (my )?card|unauthori[sz]ed)\b/i],
+  ['fraud', /\b(fraud|scam\w*|hacked|unauthori[sz]ed)\b/i],
   ['complaint:card', /\bcard\b.{0,25}(swallow|captur|kept|declin|not work|stuck|expired|blocked)|atm (took|kept|swallowed)/i],
   ['login', /(forgot|reset|change).{0,12}\b(pin|password)\b|can'?t (log ?in|sign in|access)|locked out|log ?in (issue|problem)/i],
   ['faq:hours', /(opening|closing|working) (hours|times?)|what time .*(open|close)|open on (saturday|sunday|weekends?)/i],
@@ -747,8 +750,16 @@ const CAPS = {
   'faq:hours': ['Branch opening hours', 'our opening hours'],
   'faq:fees': ['Fees and charges', 'fees and charges'],
   'faq:momo': ['Mobile money', 'mobile money'],
-  agent: ['Talk to a person', 'talking to a person']
+  agent: ['Talk to a person', 'talking to a person'],
+  'complaint:card:lost': ['Report a lost or stolen card', 'your lost card'],
+  'complaint:card:captured': ['Report a card kept by an ATM', 'your card kept by the ATM'],
+  'complaint:failed:atm': ['Report an ATM that didn\'t pay', 'the ATM problem'],
+  'complaint:blocked': ['Report a blocked account', 'your blocked account'],
+  accountBlocked: ['Account blocked or restricted', 'your blocked account'],
+  cardPin: ['Reset my card PIN', 'your card PIN']
 };
+// Specific ids such as "complaint:card:lost" fall back to their parent's wording
+const capOf = id => CAPS[id] || CAPS[id.split(':').slice(0, 2).join(':')] || CAPS[id.split(':')[0]] || ['Yes, switch', 'that'];
 
 // Loose keywords for messages that don't match a clear request: [words, strong matches, possible matches]
 const KEYWORDS = [
@@ -764,7 +775,8 @@ const KEYWORDS = [
   [['send', 'transfer', 'pay', 'payment', 'bill', 'bills', 'remit'], [], ['sendMoney', 'complaint:failed']],
   [['failed', 'fail', 'reversal', 'reverse', 'refund', 'debited', 'deducted', 'pending', 'missing'], ['complaint:failed'], ['track']],
   [['card', 'visa', 'debit'], [], ['complaint:card', 'fraud:lost', 'products']],
-  [['lost', 'stolen', 'block', 'freeze'], ['fraud:lost'], []],
+  [['lost', 'stolen', 'missing', 'misplaced'], [], ['complaint:card:lost', 'fraud']],
+  [['block', 'freeze', 'blocked', 'frozen', 'restricted'], [], ['accountBlocked', 'fraud:lost']],
   [['app', 'mobile', 'download', 'install'], [], ['getapp', 'login']],
   [['login', 'password', 'pin', 'locked', 'access', 'otp'], ['login'], ['fraud']],
   [['online', 'internet', 'web', 'website'], [], ['ibank', 'getapp']],
@@ -809,7 +821,67 @@ const suggestFor = text => {
   return { redirect, options: ranked.slice(0, 3) };
 };
 
-const detectIntent = text => (INTENTS.find(([, re]) => re.test(text)) || [])[0] || null;
+// Building blocks for spotting common banking problems in a customer's own words
+const W = {
+  card: /\b(card|visa|mastercard)\b/i,
+  atm: /\batms?\b/i,
+  lost: /\b(lost|lose|missing|stolen|stole|misplaced|can'?t find|cannot find)\b/i,
+  captured: /\b(swallow\w*|captur\w*|retain\w*|kept|seized|stuck in|ate|eaten)\b/i,
+  declined: /\b(declin\w*|reject\w*|blocked|frozen|deactivated|not work\w*|doesn'?t work|isn'?t working|won'?t work|refus\w*)\b/i,
+  notReceived: /\b(not (yet )?(received|collected|ready)|haven'?t (received|got)|didn'?t (receive|get)|still waiting|where is my)\b/i,
+  account: /\b(account|acct|a\/c)\b/i,
+  blocked: /\b(block\w*|frozen|freez\w*|froze|restrict\w*|suspend\w*|dormant|inactive|disabled|deactivated)\b/i,
+  pin: /\b(pin|password|passcode)\b/i,
+  forgot: /\b(forg[eo]t\w*|reset|change|don'?t remember|can'?t remember|wrong|locked)\b/i,
+  cantLogin: /locked out|(can'?t|cannot|unable to|not able to) (log ?in|sign ?in|access|get in)|login (issue|problem|error|failed)/i,
+  app: /\b(app|mobile banking|internet banking|online banking)\b/i,
+  broken: /\b(crash\w*|error|not work\w*|isn'?t working|bug|freez\w*|slow|won'?t (open|load)|keeps? (closing|failing))\b/i,
+  scam: /\b(scam\w*|fraud\w*|hack\w*|conned|swindl\w*|duped|unauthori[sz]ed|didn'?t authori[sz]e|stole (my )?money|stolen from)\b/i,
+  transfer: /\b(transfer\w*|sent|send|remit\w*|money|funds?|payment)\b/i,
+  momo: /\b(momo|mobile money|mtn|telecel|vodafone|airteltigo|wallet)\b/i,
+  pos: /\b(pos|online payment|shop|merchant|swipe\w*)\b/i,
+  notArrived: /\b(not (arrive\w*|received|reflect\w*|credited|showing|delivered|gone through)|hasn'?t (arrived|reflected|come|gone through|been credited)|didn'?t (arrive|reflect|go through|receive|get)|pending|reversal|reverse|refund)\b/i,
+  incoming: /\b(salary|pension|remittance|allowance|from abroad)\b/i,
+  wrong: /\b(wrong (account|number|person|recipient|wallet)|by mistake|in error|wrongly)\b/i,
+  twice: /\b(twice|double|two times|debited 2|charged 2|multiple times)\b/i,
+  noCash: /\b(dispens\w*|no cash|didn'?t (pay|give)|did not (pay|give)|without (giving )?cash|not pay(ing)? out)\b/i,
+  debited: /\b(debit\w*|deduct\w*|took (my )?money|charged)\b/i,
+  odd: /\b(unknown|strange|unexpected|don'?t (know|recogni[sz]e)|why|extra|hidden|too much)\b/i,
+  near: /\b(near\w*|closest|closer|around me|in my area|my location)\b/i,
+  branch: /\b(branch\w*|atms?|office)\b/i
+};
+const all = (...res) => t => res.every(r => r.test(t));
+
+// Specific problems first, so "my ATM card is lost" is a lost card, not an ATM search
+const ISSUE_RULES = [
+  ['fraud:lost', t => /\b(block|freeze|stop|cancel) (my |the )?(atm |debit |visa )?card\b/i.test(t)],
+  ['fraud', t => /\b(block|freeze) (my |the )?account\b/i.test(t)],
+  ['complaint:card:lost', all(W.card, W.lost)],
+  ['complaint:card:captured', all(W.card, W.captured)],
+  ['complaint:failed:atm', t => W.atm.test(t) && (W.noCash.test(t) || W.debited.test(t))],
+  ['complaint:card:declined', all(W.card, W.declined)],
+  ['complaint:card:notreceived', all(W.card, W.notReceived)],
+  ['accountBlocked', all(W.account, W.blocked)],
+  ['fraud', t => W.scam.test(t)],
+  ['cardPin', t => (W.card.test(t) || W.atm.test(t)) && W.pin.test(t)],
+  ['login', t => (W.pin.test(t) && W.forgot.test(t)) || W.cantLogin.test(t)],
+  ['complaint:digital', all(W.app, W.broken)],
+  ['complaint:failed:wrong', all(W.transfer, W.wrong)],
+  ['complaint:failed:double', t => W.twice.test(t) && (W.debited.test(t) || W.transfer.test(t))],
+  ['complaint:failed:momo', t => W.momo.test(t) && (W.notArrived.test(t) || W.debited.test(t))],
+  ['complaint:failed:pos', t => W.pos.test(t) && (W.notArrived.test(t) || W.debited.test(t))],
+  ['complaint:payin', all(W.incoming, W.notArrived)],
+  ['complaint:failed:transfer', all(W.transfer, W.notArrived)],
+  ['complaint:charges', all(W.debited, W.odd)],
+  ['branch:near', all(W.branch, W.near)],
+  ['products:loans', t => /\b(loans?|borrow\w*|mortgage|overdraft)\b/i.test(t) && !/\brates?\b/i.test(t)],
+  ['rates:fd', t => /fixed deposit/i.test(t) && /\b(rates?|interest)\b/i.test(t)],
+  ['rates:tb', t => /\bt-?bills?|treasury/i.test(t)],
+  ['rates:fx', t => /\b(dollars?|usd|gbp|pounds?|euros?|forex|exchange)\b/i.test(t)]
+];
+
+const detectIntent = text =>
+  (ISSUE_RULES.find(([, test]) => test(text)) || INTENTS.find(([, re]) => re.test(text)) || [])[0] || null;
 const matchOption = (opts, text) => {
   const t = norm(text);
   if (!t) return null;
@@ -1134,9 +1206,9 @@ class Session {
     this.pending = null;
     this.state.task = this.state.taskId = null;
     this.clearReplies();
-    const [n, arg] = name.split(':');
+    const [n, ...parts] = name.split(':');
     const flow = F[n] || F.menu;
-    if (arg !== undefined) args = [arg, ...args];
+    args = [...parts, ...args];
     Promise.resolve().then(() => flow(this, ...args)).catch(e => { if (e !== STALE) console.error(e); });
   }
 
@@ -1252,7 +1324,7 @@ class Session {
       this.state.fails = 0;
       this.state.unanswered = text;
       if (this.state.task && p) {
-        const opts = hint.options.map(id => ({ id, label: CAPS[id][0] }));
+        const opts = hint.options.map(id => ({ id, label: capOf(id)[0] }));
         return this.detour('I think I can help with that. Which of these is closest?', opts, p);
       }
       return this.go('suggest', hint);
@@ -1271,13 +1343,15 @@ class Session {
     const task = this.state.task, taskId = this.state.taskId;
     if (!task || !p) return this.go(intent);
     if (['cancel', 'menu', 'hello'].includes(intent)) return this.go('cancel');
-    if (['agent', 'done'].includes(intent)) return this.go(intent);
-    if (intent.split(':')[0] === taskId.split(':')[0]) return this.retry(this.resumeText(p, "We're already on it."), p);
+    // Urgent or explicit requests don't wait for confirmation
+    if (['agent', 'done', 'fraud', 'complaint:card:lost'].includes(intent)) return this.go(intent);
+    if (intent === taskId) return this.retry(this.resumeText(p, "We're already on it."), p);
+    if (intent.split(':')[0] === taskId.split(':')[0]) return this.go(intent);
     if (intent === 'offtopic') return this.retry(this.resumeText(p, "I wish I could help with that, but banking is my speciality."), p);
     if (intent.startsWith('faq:')) return this.faqDetour(intent.slice(4), p);
-    const cap = CAPS[intent];
-    return this.detour(`Sure, I can help with ${cap ? cap[1] : 'that'}. Would you like to do that now, or finish ${task} first?`,
-      [{ id: intent, label: cap ? cap[0] : 'Yes, switch' }], p);
+    const cap = capOf(intent);
+    return this.detour(`Sure, I can help with ${cap[1]}. Would you like to do that now, or finish ${task} first?`,
+      [{ id: intent, label: cap[0] }], p);
   }
 
   // Offer other options next to "Continue …", keeping the original question ready to resume
@@ -1460,16 +1534,16 @@ F.offtopic = s => F.menu(s, "I wish I could help with that, but banking is my sp
 F.suggest = async (s, hint) => {
   if (hint.options.length === 1 && !hint.redirect) {
     const id = hint.options[0];
-    const v = await s.choose(`Just to check, is this about ${CAPS[id][1]}?`, [{ id, label: `Yes, ${CAPS[id][0].toLowerCase()}` }, { id: 'askOther', label: 'No, something else' }]);
+    const v = await s.choose(`Just to check, is this about ${capOf(id)[1]}?`, [{ id, label: `Yes, ${capOf(id)[0].toLowerCase()}` }, { id: 'askOther', label: 'No, something else' }]);
     if (v !== 'askOther') s.state.unanswered = null;
     return s.go(v);
   }
   if (hint.redirect) {
     s.state.unanswered = null;
-    await s.say(`Sounds like you need help with ${CAPS[hint.redirect][1]}. Let's sort that out.`);
+    await s.say(`Sounds like you need help with ${capOf(hint.redirect)[1]}. Let's sort that out.`);
     return s.go(hint.redirect);
   }
-  const opts = hint.options.map(id => ({ id, label: CAPS[id][0] }));
+  const opts = hint.options.map(id => ({ id, label: capOf(id)[0] }));
   if (!hint.options.includes('agent')) opts.push({ id: 'agent', label: 'Talk to a person' });
   const v = await s.choose('I think I can help with that. Which of these is closest?', [...opts, { id: 'askOther', label: 'Something else' }]);
   if (v !== 'agent') s.state.unanswered = null;
@@ -1596,7 +1670,7 @@ F.txns = async s => {
 };
 
 /* ---------- Complaints ---------- */
-F.complaint = async (s, preset) => {
+F.complaint = async (s, preset, detail) => {
   s.state.lastTopic = 'a complaint';
   setTask(s, 'complaint', 'logging your complaint');
   const cat = preset || await s.choose("I'm sorry you've had trouble. What's it about?", COMPLAINT_TYPES);
@@ -1612,20 +1686,37 @@ F.complaint = async (s, preset) => {
   }
 
   if (cat === 'failed') {
-    await s.choose('What happened?', FAILED_TYPES); c.Issue = s.last.label;
+    const kind = detail || await s.choose('What happened?', FAILED_TYPES);
+    c.Issue = FAILED_TYPES.find(t => t.id === kind).label;
     await s.choose('When was it?', WHEN); c.When = s.last.label;
     const amt = await s.ask('How much was it?', { placeholder: 'Amount in GHS', help: 'Just type the amount in cedis, like 500.', chips: [200, 500, 1000].map(a => ({ label: money(a).replace('.00', ''), value: String(a) })), validate: parseAmount });
     c.Amount = money(amt);
   } else if (cat === 'card') {
-    const t = await s.choose("What's happening with your card?", CARD_TYPES); c.Issue = s.last.label;
-    if (t === 'lost') return F.fraud(s, 'lost');
+    const t = detail || await s.choose("What's happening with your card?", CARD_TYPES);
+    c.Issue = CARD_TYPES.find(x => x.id === t).label;
+    if (t === 'lost') {
+      // Protect the money first, then carry on with the complaint
+      const b = await s.choose("I'm sorry to hear that. First, let's keep your money safe. Shall I block the card now?",
+        [{ id: 'block', label: 'Yes, block it now' }, { id: 'skip', label: 'No, just log the complaint' }]);
+      if (b === 'block' && !s.cfg.sensitive) {
+        await s.card(kvCard('Block your card now', [['Fraud desk', '0302 000 000'], ['Hours', 'Open 24/7']], 'For your safety, cards can only be blocked by phone, in the app or on WhatsApp.'));
+      } else if (b === 'block') {
+        await s.card(kvCard('Card blocked', [['Card', 'Debit ••5512'], ['Status', 'Blocked'], ['Time', stamp()]], 'No one can use it now. Transfers and the app still work.'));
+        c.Card = 'Blocked';
+      }
+      const r = await s.choose('Would you like a replacement card?', [{ id: 'yes', label: 'Yes, please' }, { id: 'no', label: 'Not now' }]);
+      if (r === 'yes') c.Replacement = 'Requested';
+      await s.say("Got it. A few quick details and I'll log this for you.");
+    }
   }
 
-  const optional = cat === 'failed';
+  // Failed transactions and card problems already have the key facts, so details are optional
+  const optional = cat === 'failed' || cat === 'card';
   const d = await s.ask(optional ? 'Anything else we should know?' : 'Briefly, what happened?', {
     placeholder: 'Describe the issue',
     chips: optional ? [{ label: 'Skip', value: '' }] : [],
-    validate: v => (optional || v.trim().length > 2) ? { ok: true, value: v.trim() } : { ok: false, msg: 'Please add a few words so the team can help.' }
+    validate: v => (optional && /^(skip|no|none|nothing|n\/a)\.?$/i.test(v.trim())) ? { ok: true, value: '' }
+      : (optional || v.trim().length > 2) ? { ok: true, value: v.trim() } : { ok: false, msg: 'Please add a few words so the team can help.' }
   });
   if (d) c.Details = d;
 
@@ -1707,9 +1798,9 @@ F.callDesk = async s => {
 };
 
 /* ---------- Products and rates ---------- */
-F.products = async s => {
+F.products = async (s, preset) => {
   s.state.lastTopic = 'our products';
-  const v = await s.choose('What are you looking for?', Object.entries(PRODUCTS).map(([id, p]) => ({ id, label: p.label, desc: p.desc })));
+  const v = preset || await s.choose('What are you looking for?', Object.entries(PRODUCTS).map(([id, p]) => ({ id, label: p.label, desc: p.desc })));
   const p = PRODUCTS[v];
   s.state.lastTopic = p.label.toLowerCase();
   await s.say(`Here are our ${p.label.toLowerCase()}:`);
@@ -1724,9 +1815,9 @@ F.products = async s => {
   return s.go(n);
 };
 
-F.rates = async s => {
+F.rates = async (s, preset) => {
   s.state.lastTopic = 'our rates';
-  const v = await s.choose('Which rates?', [{ id: 'fx', label: 'Exchange rates' }, { id: 'fd', label: 'Fixed deposits' }, { id: 'tb', label: 'Treasury bills' }, { id: 'loan', label: 'Loan rates' }]);
+  const v = preset || await s.choose('Which rates?', [{ id: 'fx', label: 'Exchange rates' }, { id: 'fd', label: 'Fixed deposits' }, { id: 'tb', label: 'Treasury bills' }, { id: 'loan', label: 'Loan rates' }]);
   const foot = `Indicative sample rates · ${stamp()}`;
   if (v === 'fx') {
     await s.card(tableCard('Exchange rates', ['Currency', 'We buy', 'We sell'], RATES.fx.map(([c, b, x]) => [c, b.toFixed(2), x.toFixed(2)]), `GHS per unit · ${foot}`));
@@ -1847,6 +1938,19 @@ F.sendMoney = async s => {
   return F.next(s, [{ id: 'complaint:failed', label: "A transfer didn't arrive" }]);
 };
 
+F.accountBlocked = async s => {
+  s.state.lastTopic = 'a blocked account';
+  await s.say("I'm sorry, that's frustrating. Accounts are usually restricted for a security check, missing ID details, or a long time without use. Let's get it sorted.");
+  const v = await s.choose(null, [{ id: 'complaint:blocked', label: 'Log it so we can fix it' }, { id: 'agent', label: 'Talk to a person now' }, { id: 'branch', label: 'Find a branch' }]);
+  return s.go(v);
+};
+
+F.cardPin = async s => {
+  s.state.lastTopic = 'your card PIN';
+  await s.say('No problem. You can set a new card PIN in the GCB app under **Cards › Reset PIN**, or at any branch with your Ghana Card.');
+  return F.next(s, [{ id: 'complaint:card', label: 'Report a card problem' }, { id: 'branch', label: 'Find a branch' }]);
+};
+
 F.login = async s => {
   s.state.lastTopic = 'a login problem';
   await s.say("Sorry you're locked out. On the app's login screen, tap **Forgot PIN** and follow the steps with your card details. It takes about 2 minutes.");
@@ -1867,9 +1971,9 @@ F.ussd = async s => {
 };
 
 /* ---------- Branches ---------- */
-F.branch = async s => {
+F.branch = async (s, mode) => {
   s.state.lastTopic = 'finding a branch';
-  const v = await s.choose('Where should I look?', [{ id: 'loc', label: 'Use my location' }, { id: 'town', label: 'Type a town' }]);
+  const v = mode === 'near' ? 'loc' : await s.choose('Where should I look?', [{ id: 'loc', label: 'Use my location' }, { id: 'town', label: 'Type a town' }]);
   let place = 'you';
   if (v === 'town') place = await s.ask('Which town or area?', { placeholder: 'e.g. Kumasi', chips: ['Accra', 'Kumasi', 'Takoradi'].map(t => ({ label: t })), validate: required('Type a town name.') });
   await s.card(branchCard(place));
